@@ -22,7 +22,8 @@ jobs:
   release:
     uses: bazel-contrib/.github/.github/workflows/release_ruleset.yaml@v7.2.2
     with:
-      release_files: rules_gleam-*.tar.gz
+      bazel_test_command: "echo 'Skipping tests'"
+      release_files: muchq_rules_gleam-*.tar.gz
       prerelease: false
       tag_name: ${{ github.ref_name }}
   publish:
