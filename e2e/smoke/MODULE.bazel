@@ -1,7 +1,8 @@
-bazel_dep(name = "com_myorg_rules_mylang", version = "0.0.0", dev_dependency = True)
-bazel_dep(name = "bazel_skylib", version = "1.7.1", dev_dependency = True)
-
+bazel_dep(name = "muchq_rules_gleam", version = "0.0.1", repo_name = "rules_gleam")
 local_path_override(
-    module_name = "com_myorg_rules_mylang",
+    module_name = "muchq_rules_gleam",
     path = "../..",
 )
+
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "platforms", version = "0.0.10")

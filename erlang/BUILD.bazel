@@ -1,0 +1,7 @@
+# Defines the Erlang toolchain type.
+package(default_visibility = ["//visibility:public"])
+
+toolchain_type(
+    name = "erlang_toolchain_type",
+    visibility = ["//visibility:public"],
+)
