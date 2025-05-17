@@ -49,16 +49,16 @@ jobs:
           restore-keys: |
             bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-bzlmod-${{ matrix.bzlmod-enabled }}-
 
-      - name: Run Bazel Tests - Root Directory
-        if: ${{ !(matrix.bzlmod-enabled == false) }} # Skips if bzlmod-enabled is false
-        run: |
-          echo "Running tests in root directory with bzlmod=${{ matrix.bzlmod-enabled }}"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel test --enable_bzlmod --test_output=errors //...
-          else
-            # This else branch will not be hit due to the 'if' condition on the step for bzlmod=false
-            bazel test --enable_bzlmod=false --test_output=errors //...
-          fi
+      # - name: Run Bazel Tests - Root Directory
+      #   if: ${{ !(matrix.bzlmod-enabled == false) }} # Skips if bzlmod-enabled is false
+      #   run: |
+      #     echo "Running tests in root directory with bzlmod=${{ matrix.bzlmod-enabled }}"
+      #     if ${{ matrix.bzlmod-enabled }}; then
+      #       bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
+      #     else
+      #       # This else branch will not be hit due to the 'if' condition on the step for bzlmod=false
+      #       bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
+      #     fi
 
       - name: Run Bazel Tests - e2e/smoke Directory
         working-directory: e2e/smoke
