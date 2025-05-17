@@ -17,6 +17,8 @@ on:
 jobs:
   tag:
     permissions:
+      id-token: write
+      attestations: write
       contents: write # allow create tag
     runs-on: ubuntu-latest
     outputs:
