@@ -15,37 +15,80 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 jobs:
   test:
-    uses: bazel-contrib/.github/.github/workflows/bazel.yaml@v6
-    with:
-      folders: |
-        [
-          ".",
-          "e2e/smoke"
-        ]
-      exclude: |
-        [
-          {"folder": ".", "bzlmodEnabled": false}
-        ]
+    name: Test (Bazel ${{ matrix.bazel-version }}, Bzlmod ${{ matrix.bzlmod-enabled }}, OS ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        bazel-version: ['7.x', '8.x'] # Specify desired Bazel versions
+        bzlmod-enabled: [true, false]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Erlang
+        run: |
+          echo "Installing Erlang..."
+          sudo apt-get update -y
+          sudo apt-get install -y erlang
+
+      - name: Set up Bazel ${{ matrix.bazel-version }}
+        uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          version: ${{ matrix.bazel-version }}
+
+      - name: Mount Bazel cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazel-repo
+          key: bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-bzlmod-${{ matrix.bzlmod-enabled }}-${{ hashFiles('**/MODULE.bazel', '**/WORKSPACE') }}
+          restore-keys: |
+            bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-bzlmod-${{ matrix.bzlmod-enabled }}-
+
+      - name: Run Bazel Tests - Root Directory
+        if: ${{ !(matrix.bzlmod-enabled == false) }} # Skips if bzlmod-enabled is false
+        run: |
+          echo "Running tests in root directory with bzlmod=${{ matrix.bzlmod-enabled }}"
+          if ${{ matrix.bzlmod-enabled }}; then
+            bazel test --enable_bzlmod --test_output=errors //...
+          else
+            # This else branch will not be hit due to the 'if' condition on the step for bzlmod=false
+            bazel test --enable_bzlmod=false --test_output=errors //...
+          fi
+
+      - name: Run Bazel Tests - e2e/smoke Directory
+        working-directory: e2e/smoke
+        run: |
+          echo "Running tests in e2e/smoke directory with bzlmod=${{ matrix.bzlmod-enabled }}"
+          if ${{ matrix.bzlmod-enabled }}; then
+            bazel test --enable_bzlmod --test_output=errors //...
+          else
+            bazel test --enable_bzlmod=false --test_output=errors //...
+          fi
+
   pre-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pre-commit/action@v3.0.1
-  # For branch protection settings, this job provides a "stable" name that can be used to gate PR merges
-  # on "all matrix jobs were successful".
+
   conclusion:
-    needs: [test, pre-commit]
+    name: Test Conclusion
+    needs: [test, pre-commit] # Depends on the matrix job 'test' and 'pre-commit'
     runs-on: ubuntu-latest
-    if: always()
+    if: always() # Ensures this job runs even if matrix jobs fail
     steps:
-      - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3.0.3
-      # Note: possible conclusion values:
-      # https://github.com/technote-space/workflow-conclusion-action/blob/main/src/constant.ts
-      - name: report success
+      - name: Check workflow conclusion
+        uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3.0.3
+
+      - name: Report success
         if: ${{ env.WORKFLOW_CONCLUSION == 'success' }}
-        working-directory: /tmp
-        run: echo ${{ env.WORKFLOW_CONCLUSION }} && exit 0
-      - name: report failure
-        if: ${{ env.WORKFLOW_CONCLUSION == 'failure' }}
-        working-directory: /tmp
-        run: echo ${{ env.WORKFLOW_CONCLUSION }} && exit 1
+        run: echo "All tests passed successfully!" && exit 0
+
+      - name: Report failure
+        if: ${{ env.WORKFLOW_CONCLUSION != 'success' }} # Catches failure, cancelled, etc.
+        run: echo "Some tests failed or the workflow was cancelled." && exit 1
