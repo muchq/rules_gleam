@@ -31,10 +31,10 @@ def rules_gleam_dependencies():
     # For WORKSPACE users, platforms are also needed.
     http_archive(
         name = "platforms",
-        sha256 = "cf65549303a068863702ac24f77f2a3750eadca4dce855f119c25020201f3d9d",
+        sha256 = "29742e87275809b5e598dc2f04d86960cc7a55b3067d97221c9abbc9926bff0f",
         urls = [
-            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.9/platforms-0.0.9.tar.gz",
-            "https://github.com/bazelbuild/platforms/releases/download/0.0.9/platforms-0.0.9.tar.gz",
+            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/0.0.11/platforms-0.0.11.tar.gz",
+            "https://github.com/bazelbuild/platforms/releases/download/0.0.11/platforms-0.0.11.tar.gz",
         ],
     )
 
