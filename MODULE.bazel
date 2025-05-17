@@ -1,22 +1,24 @@
 "Bazel dependencies"
 
 module(
-    name = "com_myorg_rules_mylang",
+    name = "com_muchq_rules_gleam",
     version = "0.0.0",
     compatibility_level = 1,
 )
 
-bazel_dep(name = "bazel_skylib", version = "1.4.1")
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
 bazel_dep(name = "package_metadata", version = "0.0.2")
-bazel_dep(name = "platforms", version = "0.0.5")
+bazel_dep(name = "platforms", version = "0.0.9")
+bazel_dep(name = "gazelle", version = "0.35.0", repo_name = "bazel_gazelle")
 
-bazel_dep(name = "gazelle", version = "0.35.0", dev_dependency = True, repo_name = "bazel_gazelle")
 bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.4.1", dev_dependency = True)
 bazel_dep(name = "aspect_bazel_lib", version = "1.32.1", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "6.1.2", dev_dependency = True)
 
-mylang = use_extension("//mylang:extensions.bzl", "mylang")
-mylang.toolchain(mylang_version = "1.14.2")
-use_repo(mylang, "mylang_toolchains")
+gleam = use_extension("//gleam:extensions.bzl", "gleam")
+gleam.toolchain(version = "1.10.0")
+use_repo(gleam, "gleam_toolchains", "local_config_erlang")
 
-register_toolchains("@mylang_toolchains//:all")
+register_toolchains("@gleam_toolchains//:all")
+
+register_toolchains("@local_config_erlang//:erlang_toolchain_definition")

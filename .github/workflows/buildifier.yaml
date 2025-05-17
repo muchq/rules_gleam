@@ -13,5 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install erlang
+        run: sudo apt-get install -y erlang
       - name: buildifier
         run: bazel run --enable_bzlmod //.github/workflows:buildifier.check
