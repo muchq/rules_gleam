@@ -94,7 +94,7 @@
   "moduleExtensions": {
     "//gleam:extensions.bzl%gleam": {
       "general": {
-        "bzlTransitiveDigest": "TRF8kkZao0luC42iVnbtKGtFhCPuTmHeSce5NnyBjLc=",
+        "bzlTransitiveDigest": "P2E4boTctGCPjXodZcVE/Xs13zThCd0BIC8KUFke9uQ=",
         "usagesDigest": "kWNttZqXa/4iuYKP4azv1KQrtfhw1fuimWb3sFh6e2A=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},

@@ -12,8 +12,8 @@ Users can specify the Gleam version in their MODULE.bazel file:
 ```
 """
 
-load(":repositories.bzl", "gleam_register_toolchains")
 load("//erlang/private:local_erlang_repository.bzl", "local_erlang_repository")  # buildifier: disable=bzl-visibility
+load(":repositories.bzl", "gleam_register_toolchains")
 
 _DEFAULT_NAME = "gleam"
 
