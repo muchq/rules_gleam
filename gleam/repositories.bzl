@@ -48,9 +48,10 @@ _ATTRS = {
 }
 
 def _gleam_repo_impl(repository_ctx):
+    platform = repository_ctx.attr.platform.replace("gnu", "musl")
     url = "https://github.com/gleam-lang/gleam/releases/download/v{0}/gleam-v{0}-{1}.tar.gz".format(
         repository_ctx.attr.gleam_version,
-        repository_ctx.attr.platform,
+        platform,
     )
     repository_ctx.download_and_extract(
         url = url,
