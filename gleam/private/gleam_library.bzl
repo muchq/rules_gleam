@@ -89,12 +89,14 @@ def _gleam_library_impl(ctx):
 
     # --- BEGIN DEBUG ---
     command_parts.append("echo '--- DEBUG: After gleam build, before cp in gleam_library ---'")
-    command_parts.append("echo \'PWD after gleam build: $(pwd)\'")
+    command_parts.append("actual_pwd=$(pwd); echo \"PWD after gleam build: $actual_pwd\"")
     command_parts.append("echo \'Listing current directory contents (where gleam build ran):\'")
     command_parts.append("ls -laR")  # List CWD recursively
-    command_parts.append("echo \'Expected source for cp: {}/build/dev/erlang/{}\'".format(working_dir_for_gleam_build if working_dir_for_gleam_build != "." else "$(pwd)", package_name))  # Show what we expect source to be
+    command_parts.append("echo \'Expected source for cp (relative to PWD of gleam build): build/dev/erlang/{}\'".format(package_name))
     command_parts.append("echo \'Checking existence of build/dev/erlang/{}:\'".format(package_name))
     command_parts.append("ls -lad \"build/dev/erlang/{}\" || echo \'Source sub-directory build/dev/erlang/{} NOT FOUND\'".format(package_name, package_name))
+    command_parts.append("echo \'Checking existence of DESTINATION dir before cp: {}\'.format(output_pkg_build_dir.path))
+    command_parts.append("ls -lad \"{}\" || echo \'DESTINATION directory {} NOT FOUND before cp\'".format(output_pkg_build_dir.path, output_pkg_build_dir.path))
     command_parts.append("echo \'Full path to declared Bazel output dir for cp dest: {}\'".format(output_pkg_build_dir.path))
     command_parts.append("echo '--- END DEBUG ---'")
     # --- END DEBUG ---
@@ -110,8 +112,8 @@ def _gleam_library_impl(ctx):
     # The `/.` after source dir ensures contents are copied, not the directory itself.
     # output_pkg_build_dir.path is the absolute path in the sandbox for Bazel's declared output.
     # The source path for cp needs to be relative to where the shell command is executing *after* any cd.
-    copy_source_path = gleam_internal_output_subdir  # This is now relative to the CWD of gleam build
-    copy_dest_path = output_pkg_build_dir.path  # This is an absolute sandbox path
+    copy_source_path = gleam_internal_output_subdir
+    copy_dest_path = output_pkg_build_dir.path
 
     copy_command = 'cp -pR "{}/." "{}/"'.format(copy_source_path, copy_dest_path)
     command_parts.append(copy_command)
