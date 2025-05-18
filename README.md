@@ -18,9 +18,7 @@ bazel_dep(name = "muchq_rules_gleam", version = "0.0.1")
 git_override(
     module_name = "muchq_rules_gleam",
     remote = "https://github.com/muchq/rules_gleam.git",
-    commit = "933e960ab50c51a114fb9d3c3c4285755293f2ec",
-    # Replace the commit hash (above) with the latest (https://github.com/muchq/rules_gleam/commits/main).
-    # Even better, set up Renovate and let it do the work for you.
+    tag = "v0.1.0",
 )
 ```
 
