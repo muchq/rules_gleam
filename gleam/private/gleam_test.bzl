@@ -24,23 +24,85 @@ def _gleam_test_impl(ctx):
         all_input_items.extend(ctx.files.data)
     inputs_depset = depset(all_input_items)
 
+    env_vars = {}
+    all_erl_libs_paths = []
+    if hasattr(erlang_toolchain, "erl_libs_path_str") and erlang_toolchain.erl_libs_path_str:
+        all_erl_libs_paths.append(erlang_toolchain.erl_libs_path_str)
+    for dep_dir in dep_output_dirs:
+        all_erl_libs_paths.append(dep_dir.path)
+
+    if all_erl_libs_paths:
+        env_vars["ERL_LIBS"] = ":".join(all_erl_libs_paths)
+
     test_runner_script_name = ctx.label.name
     test_runner_script = ctx.actions.declare_file(test_runner_script_name)
 
-    # MINIMAL SCRIPT FOR CI DEBUGGING
-    script_content_parts = [
-        "#!/bin/sh",
-        "echo '--- MINIMAL GLEAM TEST RUNNER STARTED IN CI (full runfiles attempt) ---' >&2",
-        'echo "Script path: $0" >&2',
-        'echo "Arguments: $@" >&2',
-        'echo "TEST_SRCDIR: $TEST_SRCDIR" >&2',
-        'echo "TEST_WORKSPACE: $TEST_WORKSPACE" >&2',
-        'echo "PWD: $(pwd)" >&2',
-        'ls -la "$0" || echo "Cannot list $0 itself (error from ls)" >&2',
-        "exit 0",  # Force success
+    base_tool_paths = [
+        gleam_exe_wrapper.short_path,
+        underlying_gleam_tool.short_path,
     ]
 
-    script_content = "\n".join(script_content_parts)
+    script_content_parts = [
+        "#!/bin/sh",
+        # --- BEGIN DEBUG (can be removed once stable) ---
+        "echo '--- GLEAM TEST RUNNER DEBUG (FULL LOGIC RESTORED) ---' >&2",
+        "echo \"Script path: $0\" >&2",
+        "echo \"Arguments: $@\" >&2",
+        "echo \"Initial PWD: $(pwd)\" >&2",
+        "echo \"TEST_SRCDIR: $TEST_SRCDIR\" >&2",
+        "echo \"TEST_WORKSPACE: $TEST_WORKSPACE\" >&2",
+        "ls -la \"$0\" || echo \"Cannot list $0 itself\" >&2",
+        # --- END DEBUG ---
+        "set -euo pipefail",
+    ]
+
+    path_prefix_from_new_cwd = ""
+    actual_cd_path_relative_to_test_srcdir = ""
+
+    if ctx.file.gleam_toml:
+        toml_short_path = ctx.file.gleam_toml.short_path
+        if "/" in toml_short_path:
+            cd_dir = toml_short_path.rsplit("/", 1)[0]
+            if cd_dir and cd_dir != ".":
+                actual_cd_path_relative_to_test_srcdir = cd_dir
+        if actual_cd_path_relative_to_test_srcdir:
+            num_segments_in_cd = actual_cd_path_relative_to_test_srcdir.count("/")
+            path_prefix_from_new_cwd = "/".join([".."] * (num_segments_in_cd + 1)) + "/"
+
+    adjusted_tool_paths = []
+    if actual_cd_path_relative_to_test_srcdir:
+        for p in base_tool_paths:
+            adjusted_tool_paths.append(path_prefix_from_new_cwd + p)
+    else:
+        adjusted_tool_paths = base_tool_paths
+
+    command_to_run_in_script_list = [
+        adjusted_tool_paths[0],
+        adjusted_tool_paths[1],
+        "test",
+    ]
+    command_to_run_in_script_list.extend(ctx.attr.args)
+
+    if "ERL_LIBS" in env_vars:
+        erl_libs_for_script = []
+        for lib_path in env_vars["ERL_LIBS"].split(":"):
+            if lib_path.startswith(ctx.workspace_name + "/") or lib_path.startswith("external/") or not lib_path.startswith("/"):
+                erl_libs_for_script.append("$TEST_SRCDIR/" + lib_path)
+            else:
+                erl_libs_for_script.append(lib_path)
+        script_content_parts.append("export ERL_LIBS=\"{}\";".format(":".join(erl_libs_for_script).replace("\"", "\\\"")))
+
+    inner_command_execution = " ".join(["\\\"{}\\\"".format(arg) for arg in command_to_run_in_script_list])
+
+    if actual_cd_path_relative_to_test_srcdir:
+        gleam_toml_dir_in_runfiles = "$TEST_SRCDIR/{}".format(actual_cd_path_relative_to_test_srcdir)
+        script_content_parts.append("echo \"Attempting to cd to: {}\" >&2".format(gleam_toml_dir_in_runfiles))
+        script_content_parts.append("(cd \\\"{}\\\" && echo \\\"Successfully cd-ed. New PWD: $(pwd)\\\" >&2 && exec {}) || exit 1".format(gleam_toml_dir_in_runfiles, inner_command_execution))
+    else:
+        script_content_parts.append("echo \"No cd needed. Executing from PWD: $(pwd)\" >&2")
+        script_content_parts.append("exec {}".format(inner_command_execution))
+
+    script_content = "\\n".join(script_content_parts)
 
     ctx.actions.write(
         output = test_runner_script,
@@ -48,9 +110,8 @@ def _gleam_test_impl(ctx):
         content = script_content,
     )
 
-    # Restore full runfiles
     runfiles_files = inputs_depset.to_list() + [test_runner_script]
-    if gleam_exe_wrapper:  # Add tools if they exist
+    if gleam_exe_wrapper:
         runfiles_files.append(gleam_exe_wrapper)
     if underlying_gleam_tool:
         runfiles_files.append(underlying_gleam_tool)
