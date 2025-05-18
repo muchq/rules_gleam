@@ -91,8 +91,8 @@ def _gleam_library_impl(ctx):
     command_parts.append("echo '--- DEBUG: After gleam build, before cp in gleam_library ---'")
     command_parts.append("echo \'PWD after gleam build: $(pwd)\'")
     command_parts.append("echo \'Listing current directory contents (where gleam build ran):\'")
-    command_parts.append("ls -laR") # List CWD recursively
-    command_parts.append("echo \'Expected source for cp: {}/build/dev/erlang/{}\'".format(working_dir_for_gleam_build if working_dir_for_gleam_build != "." else "$(pwd)", package_name)) # Show what we expect source to be
+    command_parts.append("ls -laR")  # List CWD recursively
+    command_parts.append("echo \'Expected source for cp: {}/build/dev/erlang/{}\'".format(working_dir_for_gleam_build if working_dir_for_gleam_build != "." else "$(pwd)", package_name))  # Show what we expect source to be
     command_parts.append("echo \'Checking existence of build/dev/erlang/{}:\'".format(package_name))
     command_parts.append("ls -lad \"build/dev/erlang/{}\" || echo \'Source sub-directory build/dev/erlang/{} NOT FOUND\'".format(package_name, package_name))
     command_parts.append("echo \'Full path to declared Bazel output dir for cp dest: {}\'".format(output_pkg_build_dir.path))

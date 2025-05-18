@@ -65,7 +65,7 @@ def _gleam_test_impl(ctx):
         "ls -la \\\"$(readlink -f \\\"$0\\\")\\\" || echo \\\"Cannot list readlink target of $0\\\" >&2",
         "echo \\\"--- END GLEAM TEST RUNNER DEBUG ---' >&2",
         # --- END DEBUG ---
-        "set -euo pipefail", # Original set command
+        "set -euo pipefail",  # Original set command
     ]
     path_prefix_from_new_cwd = ""
     actual_cd_path_relative_to_test_srcdir = ""
