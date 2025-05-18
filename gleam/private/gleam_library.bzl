@@ -87,20 +87,6 @@ def _gleam_library_impl(ctx):
     gleam_build_cmd = '"{}" "{}" build'.format(wrapper_exec_path, underlying_tool_exec_path)
     command_parts.append(gleam_build_cmd)
 
-    # --- BEGIN DEBUG ---
-    command_parts.append("echo '--- DEBUG: After gleam build, before cp in gleam_library ---'")
-    command_parts.append("actual_pwd=$(pwd); echo \"PWD after gleam build: $actual_pwd\"")
-    command_parts.append("echo \'Listing current directory contents (where gleam build ran):\'")
-    command_parts.append("ls -laR")  # List CWD recursively
-    command_parts.append("echo \'Relative source for cp: build/dev/erlang/{}\'".format(package_name))
-    command_parts.append("echo \'Checking existence of relative source path build/dev/erlang/{}:\'".format(package_name))
-    command_parts.append("ls -lad \"build/dev/erlang/{}\" || echo \'Relative source path build/dev/erlang/{} NOT FOUND in $actual_pwd\'".format(package_name, package_name))
-    command_parts.append("echo \'Checking existence of DESTINATION dir before cp: {}\'".format(output_pkg_build_dir.path))
-    command_parts.append("ls -lad \"{}\" || echo \'DESTINATION directory {} NOT FOUND before cp\'".format(output_pkg_build_dir.path, output_pkg_build_dir.path))
-    command_parts.append("echo \'Full path to declared Bazel output dir for cp dest: {}\'".format(output_pkg_build_dir.path))
-    command_parts.append("echo '--- END DEBUG ---'")
-    # --- END DEBUG ---
-
     # Define where `gleam build` places its output relative to its working directory.
     # This is typically `build/dev/erlang/<package_name>` for the default 'dev' profile.
     # If working_dir_for_gleam_build is ".", this path is relative to execroot.

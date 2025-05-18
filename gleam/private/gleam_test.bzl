@@ -6,6 +6,8 @@ def _gleam_test_impl(ctx):
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
     gleam_exe_wrapper = gleam_toolchain_info.gleam_executable
     underlying_gleam_tool = gleam_toolchain_info.underlying_gleam_tool
+    # erlang_toolchain is used for ERL_LIBS if populated by toolchain.
+    # If ERL_LIBS logic is removed, this might become unused.
     erlang_toolchain = gleam_toolchain_info.erlang_toolchain
 
     dep_output_dirs = []
@@ -45,82 +47,64 @@ def _gleam_test_impl(ctx):
     script_content_parts = [
         "#!/bin/sh",
         "set -eu",
-        "echo '--- GLEAM TEST RUNNER (REVISED CD/PATH LOGIC V2) ---' >&2",
+        "echo '--- GLEAM TEST RUNNER (FULL LOGIC - V3) ---' >&2",
         'echo "Script path: $0" >&2',
         'echo "Initial PWD: $(pwd)" >&2',
         'echo "TEST_SRCDIR: $TEST_SRCDIR" >&2',
         'echo "TEST_WORKSPACE: $TEST_WORKSPACE" >&2',
     ]
 
-    # --- Determine CD behavior and tool path prefix ---
-    path_prefix_for_tools = ""
-    # Path for the 'cd' command in the shell script, constructed using shell variables
-    shell_cd_command_path_construction = []
-    # Starlark-side calculation of the path (relative to $TEST_SRCDIR) that the script will cd into.
-    # This is used to calculate path_prefix_for_tools.
-    starlark_path_to_cd_target_rel_to_srcdir = ""
+    path_prefix_from_new_cwd = ""
+    # This will be the full path used in the cd command, e.g., $TEST_SRCDIR/$TEST_WORKSPACE/path/to/toml_dir
+    full_cd_path_for_script = ""
+    # This is the path relative to TEST_SRCDIR that we determined to cd into.
+    # Used for calculating the .. prefix for tools.
+    path_in_runfiles_to_cd_to = ""
 
     if ctx.file.gleam_toml:
-        toml_pkg_dir_starlark = ""
-        gleam_toml_label_attr = ctx.attr.gleam_toml
-        if gleam_toml_label_attr and hasattr(gleam_toml_label_attr, "label") and hasattr(gleam_toml_label_attr.label, "package"):
-            toml_pkg_dir_starlark = gleam_toml_label_attr.label.package
+        # ctx.attr.gleam_toml is a Target object (or provides an interface like one here)
+        # Access its .label field, then the .package of that Label.
+        gleam_toml_target = ctx.attr.gleam_toml
+        if gleam_toml_target and hasattr(gleam_toml_target, "label") and hasattr(gleam_toml_target.label, "package"):
+            toml_package_dir = gleam_toml_target.label.package
+        else:
+            # Fallback or error if structure is not as expected
+            # This case should ideally not be hit if gleam_toml is a valid label attr.
+            # Setting to empty might lead to no cd, which could be default/fallback behavior.
+            toml_package_dir = ""
+            # Consider fail() if gleam_toml is mandatory for this logic path and structure is unexpected.
 
-        # Calculate path that will be cd'd into (for Starlark prefix calculation)
-        path_to_cd_into_list_starlark = [ctx.workspace_name]
-        if toml_pkg_dir_starlark:
-            path_to_cd_into_list_starlark.append(toml_pkg_dir_starlark)
-        starlark_path_to_cd_target_rel_to_srcdir = "/".join(path_to_cd_into_list_starlark)
+        path_parts_for_cd = [ctx.workspace_name] # Start with TEST_WORKSPACE
+        if toml_package_dir: # Add package path if it exists
+            path_parts_for_cd.append(toml_package_dir)
 
-        # Add commands to the script to define the actual CD path using shell variables
-        script_content_parts.append('TOML_PKG_DIR_SLARK="{}"'.format(toml_pkg_dir_starlark))
-        script_content_parts.append('CD_TARGET_DIR_REL_RUNFILES="$TEST_WORKSPACE"')
-        script_content_parts.append('if [ -n "$TOML_PKG_DIR_SLARK" ]; then CD_TARGET_DIR_REL_RUNFILES="$TEST_WORKSPACE/$TOML_PKG_DIR_SLARK"; fi')
-        script_content_parts.append('ACTUAL_CD_TARGET_PATH="$TEST_SRCDIR/$CD_TARGET_DIR_REL_RUNFILES"')
+        path_in_runfiles_to_cd_to = "/".join(path_parts_for_cd)
+        full_cd_path_for_script = "$TEST_SRCDIR/{}".format(path_in_runfiles_to_cd_to)
 
-        num_segments = starlark_path_to_cd_target_rel_to_srcdir.count("/")
-        path_prefix_for_tools = "/".join([".."] * (num_segments + 1)) + "/"
-    else:
-        # No gleam.toml: script runs from Initial PWD.
-        # Calculate prefix from Initial PWD back to $TEST_SRCDIR for tools.
-        # Initial PWD for //:foo is $TEST_SRCDIR/$TEST_WORKSPACE
-        # Initial PWD for //pkg:foo is $TEST_SRCDIR/$TEST_WORKSPACE/pkg
-        initial_pwd_rel_to_srcdir_list = [ctx.workspace_name]
-        if ctx.label.package:
-             initial_pwd_rel_to_srcdir_list.append(ctx.label.package)
-        starlark_path_to_cd_target_rel_to_srcdir = "/".join(initial_pwd_rel_to_srcdir_list) # Effective CWD
+        num_segments = path_in_runfiles_to_cd_to.count("/")
+        path_prefix_from_new_cwd = "/".join([".."] * (num_segments + 1)) + "/"
 
-        num_segments = starlark_path_to_cd_target_rel_to_srcdir.count("/")
-        path_prefix_for_tools = "/".join([".."] * (num_segments + 1)) + "/"
-        script_content_parts.append('echo "No gleam.toml found, will run from Initial PWD." >&2')
-
-    # --- ERL_LIBS Setup (before potential cd, paths relative to $TEST_SRCDIR) ---
-    if "ERL_LIBS" in env_vars:
-        erl_libs_value_parts = []
-        for lib_path in env_vars["ERL_LIBS"].split(":"):
-            if not lib_path.startswith("/"):
-                 erl_libs_value_parts.append("$TEST_SRCDIR/" + lib_path)
-            else:
-                 erl_libs_value_parts.append(lib_path)
-        script_content_parts.append('export ERL_LIBS="{}"'.format(":".join(erl_libs_value_parts)))
-
-    # --- Adjust tool paths ---
     adjusted_tool_paths = []
-    for p_base in base_tool_paths:
-        true_short_path = p_base
-        if p_base.startswith("../"): # If short_path starts with ../, assume it implies relative to $TEST_SRCDIR/TEST_WORKSPACE or similar.
-                                      # Strip it to get path truly relative to $TEST_SRCDIR root for prefixing.
-            true_short_path = p_base[3:]
+    if full_cd_path_for_script:  # If we are going to cd
+        for p_base in base_tool_paths:
+            # If path_prefix_from_new_cwd is "../" (i.e., cd to $TEST_SRCDIR/WORKSPACE_NAME)
+            # AND p_base (the short_path) also starts with "../" (meaning it's already relative to $TEST_SRCDIR/WORKSPACE_NAME)
+            # then use p_base as is. This handles the smoke test case where short_path is unusual.
+            if path_prefix_from_new_cwd == "../" and p_base.startswith("../"):
+                adjusted_tool_paths.append(p_base)
+            else:
+                # Default behavior: prepend the calculated prefix to the base short_path.
+                # This should work for deeper cd and for base_paths that don't start with ../.
+                adjusted_tool_paths.append(path_prefix_from_new_cwd + p_base)
+    else:  # No cd planned (e.g., no gleam.toml provided)
+        adjusted_tool_paths = base_tool_paths
 
-        # path_prefix_for_tools is the prefix from the CWD (initial or after cd) back to $TEST_SRCDIR.
-        # true_short_path is now relative to $TEST_SRCDIR.
-        adjusted_tool_paths.append(path_prefix_for_tools + true_short_path)
+    # --- MORE DEBUG ---
+    script_content_parts.append('echo "Base tool path 0: {}" >&2'.format(base_tool_paths[0] if len(base_tool_paths) > 0 else "N/A"))
+    script_content_parts.append('echo "Path prefix from new CWD: {}" >&2'.format(path_prefix_from_new_cwd))
+    script_content_parts.append('echo "Adjusted tool path 0: {}" >&2'.format(adjusted_tool_paths[0] if len(adjusted_tool_paths) > 0 else "N/A"))
+    # --- END MORE DEBUG ---
 
-    script_content_parts.append('echo "Base tool0: {}" >&2'.format(base_tool_paths[0] if base_tool_paths else "N/A"))
-    script_content_parts.append('echo "Starlark tool prefix: {}" >&2'.format(path_prefix_for_tools))
-    script_content_parts.append('echo "Adjusted tool0 for exec: {}" >&2'.format(adjusted_tool_paths[0] if adjusted_tool_paths else "N/A"))
-
-    # --- Command Execution ---
     command_to_run_in_script_list = [
         adjusted_tool_paths[0],
         adjusted_tool_paths[1],
@@ -128,16 +112,20 @@ def _gleam_test_impl(ctx):
     ]
     command_to_run_in_script_list.extend(ctx.attr.args)
 
+    if "ERL_LIBS" in env_vars:
+        erl_libs_value = ":".join(env_vars["ERL_LIBS"].split(":"))
+        script_content_parts.append('export ERL_LIBS="{}"'.format(erl_libs_value))
+
     safe_args_for_exec = []
     for arg in command_to_run_in_script_list:
         safe_args_for_exec.append("'{}'".format(arg.replace("'", "'\\''")))
     inner_command_execution = " ".join(safe_args_for_exec)
 
-    if ctx.file.gleam_toml: # A cd is planned
-        script_content_parts.append('echo "Executing (after potential cd to $ACTUAL_CD_TARGET_PATH): {}" >&2'.format(inner_command_execution))
-        script_content_parts.append("(cd \"$ACTUAL_CD_TARGET_PATH\" && echo \"Successfully cd-ed. New PWD: $(pwd)\" >&2 && exec {}) || {{ echo \"cd or exec failed\"; exit 1; }}".format(inner_command_execution))
-    else: # No gleam.toml, exec from Initial PWD
-        script_content_parts.append('echo "Executing (from Initial PWD): {}" >&2'.format(inner_command_execution))
+    if full_cd_path_for_script:
+        script_content_parts.append('echo "Attempting to cd to: {}" >&2'.format(full_cd_path_for_script))
+        script_content_parts.append("(cd \"{}\" && echo \"Successfully cd-ed. New PWD: $(pwd)\" >&2 && exec {}) || exit 1".format(full_cd_path_for_script, inner_command_execution))
+    else:
+        script_content_parts.append('echo "No cd needed (or gleam.toml not provided). Executing from PWD: $(pwd)\" >&2')
         script_content_parts.append("exec {}".format(inner_command_execution))
 
     script_content = "\n".join(script_content_parts)

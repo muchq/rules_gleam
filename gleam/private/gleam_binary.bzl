@@ -102,10 +102,9 @@ def _gleam_binary_impl(ctx):
     # Paths are relative to where the `erl` command will be run from (inside the wrapper script).
     # $SHIPMENT_DIR will be defined in the script to point to the root of the copied shipment.
     pa_paths_in_script = [
-        '"$SHIPMENT_DIR/{}/ebin"'.format(package_name),  # App's own compiled BEAMs
+        '"$SHIPMENT_DIR/{}/ebin"'.format(package_name),  # App's own compiled BEAMs (e.g., my_app/ebin which has main.beam)
         '"$SHIPMENT_DIR/gleam_stdlib/ebin"',  # Gleam stdlib
-        # Add other known dependencies that are part of the shipment and have an ebin. Based on ls -R.
-        '"$SHIPMENT_DIR/gleeunit/ebin"',  # gleeunit is a common dep and seen in shipment
+        '"$SHIPMENT_DIR/gleeunit/ebin"', # gleeunit is a common dep and seen in shipment
     ]
     erl_pa_flags = " ".join(["-pa {}".format(p) for p in pa_paths_in_script])
 
