@@ -40,18 +40,72 @@ def _gleam_test_impl(ctx):
     test_runner_script_name = ctx.label.name + "_test_runner.sh"
     test_runner_script = ctx.actions.declare_file(test_runner_script_name)
 
+    # Base command parts, paths are relative to $TEST_SRCDIR initially
+    base_tool_paths = [
+        gleam_exe_wrapper.short_path,
+        underlying_gleam_tool.short_path,
+    ]
+
+    script_content_parts = [
+        "#!/bin/bash",
+        # --- BEGIN DEBUG ---
+        "echo '--- GLEAM TEST RUNNER DEBUG ---' >&2",
+        "echo \\\"Executing script: $0\\\" >&2",
+        "echo \\\"PWD: $(pwd)\\\" >&2",
+        "echo \\\"TEST_SRCDIR: $TEST_SRCDIR\\\" >&2",
+        "echo \\\"TEST_WORKSPACE: $TEST_WORKSPACE\\\" >&2",
+        "echo \\\"Listing $TEST_SRCDIR/$TEST_WORKSPACE (target script dir expected location for root package):\\\" >&2",
+        "ls -la \\\"$TEST_SRCDIR/$TEST_WORKSPACE/\\\" || echo \\\"Failed to list $TEST_SRCDIR/$TEST_WORKSPACE/ (root package test)\\\" >&2",
+        "echo \\\"Listing directory of $0: $(dirname \\\"$0\\\")\\\" >&2",
+        "ls -la \\\"$(dirname \\\"$0\\\")\\\" || echo \\\"Failed to list directory of $0\\\" >&2",
+        "echo \\\"Target script ($0) details:\\\" >&2",
+        "ls -la \\\"$0\\\" || echo \\\"Cannot list $0 itself\\\" >&2",
+        "echo \\\"Readlink of $0: $(readlink -f \\\"$0\\\")\\\" >&2",
+        "echo \\\"Permissions of readlink target:\\\" >&2",
+        "ls -la \\\"$(readlink -f \\\"$0\\\")\\\" || echo \\\"Cannot list readlink target of $0\\\" >&2",
+        "echo \\\"--- END GLEAM TEST RUNNER DEBUG ---' >&2",
+        # --- END DEBUG ---
+        "set -euo pipefail", # Original set command
+    ]
+    path_prefix_from_new_cwd = ""
+    actual_cd_path_relative_to_test_srcdir = ""
+
+    if ctx.file.gleam_toml:
+        toml_short_path = ctx.file.gleam_toml.short_path
+
+        # Determine the directory of gleam.toml relative to the runfiles root ($TEST_SRCDIR)
+        if "/" in toml_short_path:
+            cd_dir = toml_short_path.rsplit("/", 1)[0]
+
+            # Only set if cd_dir is not the root itself (e.g. not "" or ".")
+            if cd_dir and cd_dir != ".":
+                actual_cd_path_relative_to_test_srcdir = cd_dir
+
+        # If toml_short_path has no '/', it's at the root of runfiles.
+        # In this case, actual_cd_path_relative_to_test_srcdir remains "", so no cd.
+
+        if actual_cd_path_relative_to_test_srcdir:
+            # Calculate prefix to get from new CWD back to TEST_SRCDIR
+            num_segments_in_cd = actual_cd_path_relative_to_test_srcdir.count("/")
+            path_prefix_from_new_cwd = "/".join([".."] * (num_segments_in_cd + 1)) + "/"
+
+    # Adjust tool paths if we are going to cd
+    adjusted_tool_paths = []
+    if actual_cd_path_relative_to_test_srcdir:  # i.e., if cd is happening
+        for p in base_tool_paths:
+            adjusted_tool_paths.append(path_prefix_from_new_cwd + p)
+    else:
+        adjusted_tool_paths = base_tool_paths
+
     # Command to be executed by the test runner script.
-    # Calls the gleam_exe_wrapper, which expects the underlying_gleam_tool path as its first argument.
     command_to_run_in_script_list = [
-        gleam_exe_wrapper.short_path,  # The wrapper script path (relative to runfiles root)
-        underlying_gleam_tool.short_path,  # Arg $1 to wrapper: actual gleam binary (relative to runfiles root)
-        "test",  # Arg $2 to wrapper (becomes $1 to gleam): the gleam command
+        adjusted_tool_paths[0],  # Adjusted wrapper script path
+        adjusted_tool_paths[1],  # Adjusted underlying gleam tool path
+        "test",  # The gleam command
     ]
 
     # Add any user-provided arguments for `gleam test`
     command_to_run_in_script_list.extend(ctx.attr.args)
-
-    script_content_parts = ["#!/bin/bash", "set -euo pipefail"]
 
     # Export ERL_LIBS if it's populated
     if "ERL_LIBS" in env_vars:
@@ -67,17 +121,17 @@ def _gleam_test_impl(ctx):
                 erl_libs_for_script.append(lib_path)
         script_content_parts.append("export ERL_LIBS=\"{}\";".format(":".join(erl_libs_for_script).replace("\"", "\\\"")))
 
-    inner_command_execution = " ".join(["\"{}\"".format(arg) for arg in command_to_run_in_script_list])
+    inner_command_execution = " ".join(["\\\"{}\\\"".format(arg) for arg in command_to_run_in_script_list])
 
-    # Change directory if gleam.toml is provided
-    if ctx.file.gleam_toml:
+    # Change directory if gleam.toml is provided and a valid cd path was determined
+    if actual_cd_path_relative_to_test_srcdir:
         # The path to gleam.toml's directory within the test runfiles.
-        gleam_toml_dir_in_runfiles = "$TEST_SRCDIR/{}/{}".format(ctx.workspace_name, ctx.file.gleam_toml.dirname)
-        script_content_parts.append("(cd \"{}\" && exec {}) || exit 1".format(gleam_toml_dir_in_runfiles, inner_command_execution))
+        gleam_toml_dir_in_runfiles = "$TEST_SRCDIR/{}".format(actual_cd_path_relative_to_test_srcdir)
+        script_content_parts.append("(cd \\\"{}\\\" && exec {}) || exit 1".format(gleam_toml_dir_in_runfiles, inner_command_execution))
     else:
         script_content_parts.append("exec {}".format(inner_command_execution))
 
-    script_content = "\n".join(script_content_parts)
+    script_content = "\\n".join(script_content_parts)
 
     ctx.actions.write(
         output = test_runner_script,
