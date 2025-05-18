@@ -47,7 +47,7 @@ def _gleam_test_impl(ctx):
     ]
 
     script_content_parts = [
-        "#!/bin/bash",
+        "#!/bin/sh",
         # --- BEGIN DEBUG ---
         "echo '--- GLEAM TEST RUNNER DEBUG ---' >&2",
         "echo \\\"Executing script: $0\\\" >&2",
@@ -68,26 +68,7 @@ def _gleam_test_impl(ctx):
         "set -euo pipefail",  # Original set command
     ]
     path_prefix_from_new_cwd = ""
-    actual_cd_path_relative_to_test_srcdir = ""
-
-    if ctx.file.gleam_toml:
-        toml_short_path = ctx.file.gleam_toml.short_path
-
-        # Determine the directory of gleam.toml relative to the runfiles root ($TEST_SRCDIR)
-        if "/" in toml_short_path:
-            cd_dir = toml_short_path.rsplit("/", 1)[0]
-
-            # Only set if cd_dir is not the root itself (e.g. not "" or ".")
-            if cd_dir and cd_dir != ".":
-                actual_cd_path_relative_to_test_srcdir = cd_dir
-
-        # If toml_short_path has no '/', it's at the root of runfiles.
-        # In this case, actual_cd_path_relative_to_test_srcdir remains "", so no cd.
-
-        if actual_cd_path_relative_to_test_srcdir:
-            # Calculate prefix to get from new CWD back to TEST_SRCDIR
-            num_segments_in_cd = actual_cd_path_relative_to_test_srcdir.count("/")
-            path_prefix_from_new_cwd = "/".join([".."] * (num_segments_in_cd + 1)) + "/"
+    actual_cd_path_relative_to_test_srcdir = ""  # FORCED: Assume no cd for now to test CI regression
 
     # Adjust tool paths if we are going to cd
     adjusted_tool_paths = []
