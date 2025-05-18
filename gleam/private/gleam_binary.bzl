@@ -92,9 +92,11 @@ def _gleam_binary_impl(ctx):
     runner_script = ctx.actions.declare_file(runner_script_name)
 
     # Erlang evaluation details
-    erl_target_module_for_eval = "{}@main".format(package_name)  # For direct call, no Erlang atom quotes needed here
-    erl_target_function_for_eval = "main"
-    # For a direct call like module:function(), arguments are in the call string itself.
+    # Assuming src/main.gleam provides the main/0 function,
+    # which compiles to Erlang module 'main' (in main.beam).
+    erl_target_module_atom = "'main'"
+    erl_target_function_atom = "'main'"
+    erl_target_function_args = "[]"
 
     # Construct -pa paths for Erlang. These paths are inside the runfiles shipment directory.
     # Paths are relative to where the `erl` command will be run from (inside the wrapper script).
@@ -109,13 +111,10 @@ def _gleam_binary_impl(ctx):
 
     # Erlang command to execute the main function.
     # init:stop() is important for the Erlang VM to exit after main returns.
-    erl_eval_cmd = (
-        # Directly call module:function(), then stop.
-        "{}:{}(), init:stop().".format(
-            erl_target_module_for_eval,
-            erl_target_function_for_eval,
-        )
-    )
+    eval_part1 = "code:ensure_loaded({})".format(erl_target_module_atom)
+    eval_part2 = "erlang:apply({}, {}, {})".format(erl_target_module_atom, erl_target_function_atom, erl_target_function_args)
+    eval_part3 = "init:stop()"
+    erl_eval_cmd = eval_part1 + ", " + eval_part2 + ", " + eval_part3
 
     # Ensure the eval string is properly escaped for the shell script
     # by only escaping double quotes. Single quotes for atoms are fine.
