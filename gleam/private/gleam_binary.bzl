@@ -91,31 +91,29 @@ def _gleam_binary_impl(ctx):
     runner_script_name = ctx.label.name + "_runner.sh"
     runner_script = ctx.actions.declare_file(runner_script_name)
 
-    # Erlang evaluation details (module, function, args)
-    # Assuming standard main/0 entry point.
-    # The module name often corresponds to the package_name in the Erlang runtime after shipment.
-    erl_target_module_atom = "'{}'".format(package_name)
-    erl_target_function_atom = "'main'"
-    erl_target_function_args = "[]"
+    # Erlang evaluation details
+    erl_target_module_for_eval = "{}@main".format(package_name) # For direct call, no Erlang atom quotes needed here
+    erl_target_function_for_eval = "main"
+    # For a direct call like module:function(), arguments are in the call string itself.
 
     # Construct -pa paths for Erlang. These paths are inside the runfiles shipment directory.
     # Paths are relative to where the `erl` command will be run from (inside the wrapper script).
     # $SHIPMENT_DIR will be defined in the script to point to the root of the copied shipment.
     pa_paths_in_script = [
         '"$SHIPMENT_DIR/{}/ebin"'.format(package_name),  # App's own compiled BEAMs
-        '"$SHIPMENT_DIR/gleam_stdlib/ebin"',  # Gleam stdlib (assuming it's part of shipment)
-        # TODO: Add other necessary lib ebin paths from the shipment if any
+        '"$SHIPMENT_DIR/gleam_stdlib/ebin"',  # Gleam stdlib
+        # Add other known dependencies that are part of the shipment and have an ebin. Based on ls -R.
+        '"$SHIPMENT_DIR/gleeunit/ebin"', # gleeunit is a common dep and seen in shipment
     ]
     erl_pa_flags = " ".join(["-pa {}".format(p) for p in pa_paths_in_script])
 
     # Erlang command to execute the main function.
     # init:stop() is important for the Erlang VM to exit after main returns.
     erl_eval_cmd = (
-        # 'code:load_abs(...)' might not be needed if -pa paths are correct and modules are standard.
-        "erlang:apply({}, {}, {}), init:stop().".format(
-            erl_target_module_atom,
-            erl_target_function_atom,
-            erl_target_function_args,
+        # Directly call module:function(), then stop.
+        "{}:{}(), init:stop().".format(
+            erl_target_module_for_eval,
+            erl_target_function_for_eval,
         )
     )
 

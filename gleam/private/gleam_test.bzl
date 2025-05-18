@@ -31,16 +31,16 @@ def _gleam_test_impl(ctx):
     script_content_parts = [
         "#!/bin/sh",
         "echo '--- MINIMAL GLEAM TEST RUNNER STARTED IN CI (full runfiles attempt) ---' >&2",
-        "echo \\"Script path: $0\\" >&2",
-        "echo \\"Arguments: $@\\" >&2",
-        "echo \\"TEST_SRCDIR: $TEST_SRCDIR\\" >&2",
-        "echo \\"TEST_WORKSPACE: $TEST_WORKSPACE\\" >&2",
-        "echo \\"PWD: $(pwd)\\" >&2",
-        "ls -la \\\\\\"$0\\\\\\\" || echo \\\\\\\"Cannot list $0 itself\\\\\\\" >&2",
+        'echo "Script path: $0" >&2',
+        'echo "Arguments: $@" >&2',
+        'echo "TEST_SRCDIR: $TEST_SRCDIR" >&2',
+        'echo "TEST_WORKSPACE: $TEST_WORKSPACE" >&2',
+        'echo "PWD: $(pwd)" >&2',
+        'ls -la "$0" || echo "Cannot list $0 itself (error from ls)" >&2',
         "exit 0",  # Force success
     ]
 
-    script_content = "\\n".join(script_content_parts)
+    script_content = "\n".join(script_content_parts)
 
     ctx.actions.write(
         output = test_runner_script,
