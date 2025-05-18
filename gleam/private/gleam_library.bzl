@@ -115,6 +115,10 @@ def _gleam_library_impl(ctx):
     copy_source_path = gleam_internal_output_subdir
     copy_dest_path = output_pkg_build_dir.path
 
+    # Ensure destination directory exists before copying
+    mkdir_dest_command = 'mkdir -p "{}"'.format(copy_dest_path)
+    command_parts.append(mkdir_dest_command)
+
     copy_command = 'cp -pR "{}/." "{}/"'.format(copy_source_path, copy_dest_path)
     command_parts.append(copy_command)
 
