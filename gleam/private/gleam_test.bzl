@@ -4,8 +4,9 @@ load("//gleam/private:gleam_library.bzl", "GleamLibraryProviderInfo")
 
 def _gleam_test_impl(ctx):
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
-    gleam_exe_wrapper = gleam_toolchain_info.gleam_executable
-    underlying_gleam_tool = gleam_toolchain_info.underlying_gleam_tool
+
+    # gleam_exe_wrapper = gleam_toolchain_info.gleam_executable # Keep commented for minimal script content
+    # underlying_gleam_tool = gleam_toolchain_info.underlying_gleam_tool # Keep commented for minimal script
     erlang_toolchain = gleam_toolchain_info.erlang_toolchain
 
     dep_output_dirs = []
@@ -20,12 +21,9 @@ def _gleam_test_impl(ctx):
     all_input_items.extend(dep_output_dirs)
     if ctx.file.gleam_toml:
         all_input_items.append(ctx.file.gleam_toml)
-
-    # Add any explicit data dependencies for the test
     if ctx.files.data:
         all_input_items.extend(ctx.files.data)
-
-    inputs_depset = depset(all_input_items)
+    inputs_depset = depset(all_input_items)  # Restore inputs_depset for runfiles
 
     env_vars = {}
     all_erl_libs_paths = []
@@ -42,8 +40,8 @@ def _gleam_test_impl(ctx):
 
     # Base command parts, paths are relative to $TEST_SRCDIR initially
     base_tool_paths = [
-        gleam_exe_wrapper.short_path,
-        underlying_gleam_tool.short_path,
+        # gleam_exe_wrapper.short_path,
+        # underlying_gleam_tool.short_path,
     ]
 
     script_content_parts = [
@@ -88,8 +86,8 @@ def _gleam_test_impl(ctx):
         adjusted_tool_paths = base_tool_paths
 
     command_to_run_in_script_list = [
-        adjusted_tool_paths[0],
-        adjusted_tool_paths[1],
+        # adjusted_tool_paths[0],
+        # adjusted_tool_paths[1],
         "test",
     ]
     command_to_run_in_script_list.extend(ctx.attr.args)
@@ -119,12 +117,22 @@ def _gleam_test_impl(ctx):
         content = script_content,
     )
 
-    runfiles_files = inputs_depset.to_list() + [gleam_exe_wrapper, underlying_gleam_tool, test_runner_script]
+    # Runfiles needed for the test to execute.
+    # For minimal script, only itself. For real script, need tools & inputs.
+    # minimal_runfiles = [test_runner_script]
+    # Restore full runfiles, but get toolchain items carefully if they are None
+    runfiles_elements = inputs_depset.to_list() + [test_runner_script]
+    gleam_exe_wrapper_file = gleam_toolchain_info.gleam_executable
+    if gleam_exe_wrapper_file:
+        runfiles_elements.append(gleam_exe_wrapper_file)
+    underlying_gleam_tool_file = gleam_toolchain_info.underlying_gleam_tool
+    if underlying_gleam_tool_file:
+        runfiles_elements.append(underlying_gleam_tool_file)
 
     return [
         DefaultInfo(
             executable = test_runner_script,
-            runfiles = ctx.runfiles(files = runfiles_files),
+            runfiles = ctx.runfiles(files = runfiles_elements),
         ),
     ]
 
