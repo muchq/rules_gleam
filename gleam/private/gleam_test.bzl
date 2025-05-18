@@ -55,31 +55,46 @@ def _gleam_test_impl(ctx):
     ]
 
     path_prefix_from_new_cwd = ""
-    actual_cd_path_relative_to_test_srcdir = ""
+    full_cd_path_for_script = ""
+    path_in_runfiles_to_cd_to = ""
 
     if ctx.file.gleam_toml:
-        toml_short_path = ctx.file.gleam_toml.short_path
-        # Determine the directory of gleam.toml relative to the runfiles root ($TEST_SRCDIR)
-        # This path will be like "_main/path/to/pkg" or "my_workspace/path/to/pkg"
-        if "/" in toml_short_path:
-            cd_dir = toml_short_path.rsplit("/", 1)[0]
-            # Only cd if cd_dir is not effectively the TEST_SRCDIR itself.
-            # A cd_dir like "_main" (for a root package gleam.toml) means we want to cd into $TEST_SRCDIR/_main.
-            # A cd_dir like "." or empty would mean gleam.toml is at $TEST_SRCDIR, so no cd needed.
-            if cd_dir and cd_dir != ".":
-                actual_cd_path_relative_to_test_srcdir = cd_dir
-        # If gleam.toml is at the very root of runfiles (e.g. short_path is just "gleam.toml"), no cd needed from $TEST_SRCDIR.
+        gleam_toml_target = ctx.attr.gleam_toml
+        if gleam_toml_target and hasattr(gleam_toml_target, "label") and hasattr(gleam_toml_target.label, "package"):
+            toml_package_dir = gleam_toml_target.label.package
+        else:
+            toml_package_dir = ""
 
-        if actual_cd_path_relative_to_test_srcdir:
-            num_segments_in_cd = actual_cd_path_relative_to_test_srcdir.count("/")
-            path_prefix_from_new_cwd = "/".join([".."] * (num_segments_in_cd + 1)) + "/"
+        path_parts_for_cd = [ctx.workspace_name]
+        if toml_package_dir:
+            path_parts_for_cd.append(toml_package_dir)
+
+        path_in_runfiles_to_cd_to = "/".join(path_parts_for_cd)
+        full_cd_path_for_script = "$TEST_SRCDIR/{}".format(path_in_runfiles_to_cd_to)
+
+        num_segments = path_in_runfiles_to_cd_to.count("/")
+        path_prefix_from_new_cwd = "/".join([".."] * (num_segments + 1)) + "/"
 
     adjusted_tool_paths = []
-    if actual_cd_path_relative_to_test_srcdir: # If we are going to cd
-        for p in base_tool_paths:
-            adjusted_tool_paths.append(path_prefix_from_new_cwd + p)
-    else: # No cd, tools are relative to current PWD ($TEST_SRCDIR)
+    if full_cd_path_for_script:  # If we are going to cd
+        for p_base in base_tool_paths:
+            # If path_prefix_from_new_cwd is "../" (i.e., cd to $TEST_SRCDIR/WORKSPACE_NAME)
+            # AND p_base (the short_path) also starts with "../" (meaning it's already relative to $TEST_SRCDIR/WORKSPACE_NAME)
+            # then use p_base as is. This handles the smoke test case where short_path is unusual.
+            if path_prefix_from_new_cwd == "../" and p_base.startswith("../"):
+                adjusted_tool_paths.append(p_base)
+            else:
+                # Default behavior: prepend the calculated prefix to the base short_path.
+                # This should work for deeper cd and for base_paths that don't start with ../.
+                adjusted_tool_paths.append(path_prefix_from_new_cwd + p_base)
+    else:  # No cd planned (e.g., no gleam.toml provided)
         adjusted_tool_paths = base_tool_paths
+
+    # --- MORE DEBUG ---
+    script_content_parts.append('echo "Base tool path 0: {}" >&2'.format(base_tool_paths[0] if len(base_tool_paths) > 0 else "N/A"))
+    script_content_parts.append('echo "Path prefix from new CWD: {}" >&2'.format(path_prefix_from_new_cwd))
+    script_content_parts.append('echo "Adjusted tool path 0: {}" >&2'.format(adjusted_tool_paths[0] if len(adjusted_tool_paths) > 0 else "N/A"))
+    # --- END MORE DEBUG ---
 
     command_to_run_in_script_list = [
         adjusted_tool_paths[0],
@@ -92,17 +107,23 @@ def _gleam_test_impl(ctx):
         erl_libs_value = ":".join(env_vars["ERL_LIBS"].split(":"))
         script_content_parts.append('export ERL_LIBS="{}"'.format(erl_libs_value))
 
+    # For the echo, print what will actually be executed
+    # The actual command uses adjusted_tool_paths which are already prefixed
+    echo_command_list = list(command_to_run_in_script_list) # Create a copy for echoing
+    # For echoing, we want to show the paths as they would be if CWD was TEST_SRCDIR
+    # This means we need to show the non-prefixed tool paths if a cd is happening.
+    # However, the existing echo prints inner_command_execution which IS the prefixed one.
+
     safe_args_for_exec = []
-    for arg in command_to_run_in_script_list:
+    for arg in command_to_run_in_script_list: # command_to_run_in_script_list uses adjusted_tool_paths
         safe_args_for_exec.append("'{}'".format(arg.replace("'", "'\\''")))
     inner_command_execution = " ".join(safe_args_for_exec)
 
-    if actual_cd_path_relative_to_test_srcdir:
-        gleam_toml_dir_in_runfiles = "$TEST_SRCDIR/{}".format(actual_cd_path_relative_to_test_srcdir)
-        script_content_parts.append('echo "Attempting to cd to: {}" >&2'.format(gleam_toml_dir_in_runfiles))
-        script_content_parts.append("(cd \"{}\" && echo \"Successfully cd-ed. New PWD: $(pwd)\" >&2 && exec {}) || exit 1".format(gleam_toml_dir_in_runfiles, inner_command_execution))
+    if full_cd_path_for_script:
+        script_content_parts.append('echo "Executing (from PWD: $(pwd)): {}" >&2'.format(inner_command_execution))
+        script_content_parts.append("(cd \"{}\" && echo \"Successfully cd-ed. New PWD: $(pwd)\" >&2 && exec {}) || exit 1".format(full_cd_path_for_script, inner_command_execution))
     else:
-        script_content_parts.append('echo "No cd needed. Executing from PWD: $(pwd)" >&2')
+        script_content_parts.append('echo "No cd needed. Executing (from PWD: $(pwd)): {}" >&2'.format(inner_command_execution))
         script_content_parts.append("exec {}".format(inner_command_execution))
 
     script_content = "\n".join(script_content_parts)
