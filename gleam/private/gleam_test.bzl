@@ -107,10 +107,14 @@ def _gleam_test_impl(ctx):
     # --- Adjust tool paths ---
     adjusted_tool_paths = []
     for p_base in base_tool_paths:
-        if path_prefix_for_tools == "../" and p_base.startswith("../"):
-            adjusted_tool_paths.append(p_base)
-        else:
-            adjusted_tool_paths.append(path_prefix_for_tools + p_base)
+        true_short_path = p_base
+        if p_base.startswith("../"): # If short_path starts with ../, assume it implies relative to $TEST_SRCDIR/TEST_WORKSPACE or similar.
+                                      # Strip it to get path truly relative to $TEST_SRCDIR root for prefixing.
+            true_short_path = p_base[3:]
+
+        # path_prefix_for_tools is the prefix from the CWD (initial or after cd) back to $TEST_SRCDIR.
+        # true_short_path is now relative to $TEST_SRCDIR.
+        adjusted_tool_paths.append(path_prefix_for_tools + true_short_path)
 
     script_content_parts.append('echo "Base tool0: {}" >&2'.format(base_tool_paths[0] if base_tool_paths else "N/A"))
     script_content_parts.append('echo "Starlark tool prefix: {}" >&2'.format(path_prefix_for_tools))
