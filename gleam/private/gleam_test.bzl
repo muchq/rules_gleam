@@ -84,26 +84,21 @@ def _gleam_test_impl(ctx):
         num_segments = path_in_runfiles_to_cd_to.count("/")
         path_prefix_from_new_cwd = "/".join([".."] * (num_segments + 1)) + "/"
 
+    path_prefix_for_tools = "/".join([".."] * (num_segments + 1)) + "/"
+    # --- Adjust tool paths ---
     adjusted_tool_paths = []
-    if full_cd_path_for_script:  # If we are going to cd
-        for p_base in base_tool_paths:
-            # If path_prefix_from_new_cwd is "../" (i.e., cd to $TEST_SRCDIR/WORKSPACE_NAME)
-            # AND p_base (the short_path) also starts with "../" (meaning it's already relative to $TEST_SRCDIR/WORKSPACE_NAME)
-            # then use p_base as is. This handles the smoke test case where short_path is unusual.
-            if path_prefix_from_new_cwd == "../" and p_base.startswith("../"):
-                adjusted_tool_paths.append(p_base)
-            else:
-                # Default behavior: prepend the calculated prefix to the base short_path.
-                # This should work for deeper cd and for base_paths that don't start with ../.
-                adjusted_tool_paths.append(path_prefix_from_new_cwd + p_base)
-    else:  # No cd planned (e.g., no gleam.toml provided)
-        adjusted_tool_paths = base_tool_paths
+    for p_base in base_tool_paths:
+        true_short_path_relative_to_srcdir = p_base
+        if p_base.startswith("../"):
+            # If short_path from toolchain gives e.g. "../mangled_repo/tool",
+            # assume "mangled_repo/tool" is the path from $TEST_SRCDIR.
+            true_short_path_relative_to_srcdir = p_base[3:]
 
-    # --- MORE DEBUG ---
-    script_content_parts.append('echo "Base tool path 0: {}" >&2'.format(base_tool_paths[0] if len(base_tool_paths) > 0 else "N/A"))
-    script_content_parts.append('echo "Path prefix from new CWD: {}" >&2'.format(path_prefix_from_new_cwd))
-    script_content_parts.append('echo "Adjusted tool path 0: {}" >&2'.format(adjusted_tool_paths[0] if len(adjusted_tool_paths) > 0 else "N/A"))
-    # --- END MORE DEBUG ---
+        # path_prefix_for_tools is the prefix needed to go from the CWD (after cd)
+        # back to $TEST_SRCDIR. Then append the true_short_path.
+        adjusted_tool_paths.append(path_prefix_for_tools + true_short_path_relative_to_srcdir)
+
+    script_content_parts.append('echo "Base tool0: {}" >&2'.format(base_tool_paths[0] if base_tool_paths else "N/A"))
 
     command_to_run_in_script_list = [
         adjusted_tool_paths[0],
