@@ -41,7 +41,7 @@ def _gleam_test_impl(ctx):
 
     script_content_parts = [
         "#!/bin/sh",
-        "set -euo pipefail",
+        "set -eu",
         'echo "--- GLEAM TEST RUNNER (SYNTAX FIX ATTEMPT) ---" >&2',
         'echo "Script path: $0" >&2',
         'echo "Initial PWD: $(pwd)" >&2',
