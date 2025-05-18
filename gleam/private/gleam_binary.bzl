@@ -39,16 +39,25 @@ def _gleam_binary_impl(ctx):
 
     command_script_parts = []
     working_dir_for_gleam = "."  # Default to execroot
+    path_prefix_to_execroot = ""
+
     if ctx.file.gleam_toml:
         toml_dir = ctx.file.gleam_toml.dirname
         if toml_dir and toml_dir != ".":
             working_dir_for_gleam = toml_dir
             command_script_parts.append('cd "{}"'.format(working_dir_for_gleam))
 
+            # Calculate prefix to get from toml_dir back to execroot
+            num_segments = toml_dir.count("/")
+            path_prefix_to_execroot = "/".join([".."] * (num_segments + 1)) + "/"
+
     # Gleam export command. It outputs to <CWD>/build/erlang-shipment.
     # The wrapper script expects the actual gleam binary path as its first argument.
+    # Prepend path_prefix_to_execroot if we changed directory.
+    wrapper_exec_path = path_prefix_to_execroot + gleam_exe_wrapper.path
+    underlying_tool_exec_path = path_prefix_to_execroot + underlying_gleam_tool.path
     command_script_parts.append(
-        '"{}" "{}" export erlang-shipment'.format(gleam_exe_wrapper.path, underlying_gleam_tool.path),
+        '"{}" "{}" export erlang-shipment'.format(wrapper_exec_path, underlying_tool_exec_path),
     )
 
     # Source of shipment, relative to `working_dir_for_gleam` (where gleam export was run)
