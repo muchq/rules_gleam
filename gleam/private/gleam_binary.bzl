@@ -73,18 +73,29 @@ def _gleam_binary_impl(ctx):
     # --- END EXPORT DEBUG ---
 
     # Source of shipment, relative to `working_dir_for_gleam` (where gleam export was run)
-    # gleam_created_shipment_path_relative_to_cwd = "build/erlang-shipment" # Moved up
+    # gleam_created_shipment_path_relative_to_cwd = "build/erlang-shipment" # Defined before debug block
 
     # Destination: absolute path to the Bazel-declared TreeArtifact in the sandbox
     declared_bazel_output_dir_path = gleam_export_output_dir.path
 
     # Copy the generated shipment into the Bazel-declared output directory.
-    command_script_parts.append(
-        'if [ -d "{src}" ]; then mkdir -p "{dst}" && cp -pR "{src}/." "{dst}/"; else echo "Gleam export source dir {src} not found after running in $PWD!"; exit 1; fi'.format(
-            src = gleam_created_shipment_path_relative_to_cwd,
-            dst = declared_bazel_output_dir_path,
-        ),
+    copy_block_string = (
+        'if [ -d "{src}" ]; then ' +
+            'echo "Source dir {src} found. Preparing to copy to {dst}."; ' +
+            'mkdir -p "{dst}" && ' +
+            'echo "Destination dir {dst} ensured by mkdir -p."; ' +
+            'cp -pR "{src}/." "{dst}/" && ' +
+            'echo "cp command completed. Listing destination {dst}:"; ' +
+            'ls -laR "{dst}"; ' +
+            'echo "Copy successful to {dst}."; ' +
+        'else ' +
+            'echo "Gleam export source dir {src} not found after running in $PWD! This is an error."; exit 1; ' +
+        'fi'
     )
+    command_script_parts.append(copy_block_string.format(
+        src=gleam_created_shipment_path_relative_to_cwd,
+        dst=declared_bazel_output_dir_path,
+    ))
 
     command_str = " && ".join(command_script_parts)
 
