@@ -6,8 +6,6 @@ def _gleam_test_impl(ctx):
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
     gleam_exe_wrapper = gleam_toolchain_info.gleam_executable
     underlying_gleam_tool = gleam_toolchain_info.underlying_gleam_tool
-    # erlang_toolchain is used for ERL_LIBS if populated by toolchain.
-    # If ERL_LIBS logic is removed, this might become unused.
     erlang_toolchain = gleam_toolchain_info.erlang_toolchain
 
     dep_output_dirs = []
@@ -39,92 +37,40 @@ def _gleam_test_impl(ctx):
     test_runner_script_name = ctx.label.name + "_test_runner.sh"
     test_runner_script = ctx.actions.declare_file(test_runner_script_name)
 
-    base_tool_paths = [
-        gleam_exe_wrapper.short_path,
-        underlying_gleam_tool.short_path,
-    ]
-
     script_content_parts = [
         "#!/bin/sh",
-        "set -eu",
-        "echo '--- GLEAM TEST RUNNER (FULL LOGIC - V3) ---' >&2",
+        "set -eu", # For POSIX sh compatibility, was -euo pipefail
+        "echo '--- GLEAM TEST RUNNER (CI Passing Baseline Logic) ---' >&2",
         'echo "Script path: $0" >&2',
         'echo "Initial PWD: $(pwd)" >&2',
         'echo "TEST_SRCDIR: $TEST_SRCDIR" >&2',
         'echo "TEST_WORKSPACE: $TEST_WORKSPACE" >&2',
     ]
 
-    path_prefix_from_new_cwd = ""
-    full_cd_path_for_script = ""
-    path_in_runfiles_to_cd_to = ""
-
-    if ctx.file.gleam_toml:
-        gleam_toml_target = ctx.attr.gleam_toml
-        if gleam_toml_target and hasattr(gleam_toml_target, "label") and hasattr(gleam_toml_target.label, "package"):
-            toml_package_dir = gleam_toml_target.label.package
-        else:
-            toml_package_dir = ""
-
-        path_parts_for_cd = [ctx.workspace_name]
-        if toml_package_dir:
-            path_parts_for_cd.append(toml_package_dir)
-
-        path_in_runfiles_to_cd_to = "/".join(path_parts_for_cd)
-        full_cd_path_for_script = "$TEST_SRCDIR/{}".format(path_in_runfiles_to_cd_to)
-
-        num_segments = path_in_runfiles_to_cd_to.count("/")
-        path_prefix_from_new_cwd = "/".join([".."] * (num_segments + 1)) + "/"
-
-    adjusted_tool_paths = []
-    if full_cd_path_for_script:  # If we are going to cd
-        for p_base in base_tool_paths:
-            # If path_prefix_from_new_cwd is "../" (i.e., cd to $TEST_SRCDIR/WORKSPACE_NAME)
-            # AND p_base (the short_path) also starts with "../" (meaning it's already relative to $TEST_SRCDIR/WORKSPACE_NAME)
-            # then use p_base as is. This handles the smoke test case where short_path is unusual.
-            if path_prefix_from_new_cwd == "../" and p_base.startswith("../"):
-                adjusted_tool_paths.append(p_base)
+    if "ERL_LIBS" in env_vars:
+        erl_libs_value_for_script = []
+        for lib_path in env_vars["ERL_LIBS"].split(":"):
+            # Make paths runfile-relative if they are not absolute system paths
+            if not lib_path.startswith("/"):
+                erl_libs_value_for_script.append("$TEST_SRCDIR/" + lib_path)
             else:
-                # Default behavior: prepend the calculated prefix to the base short_path.
-                # This should work for deeper cd and for base_paths that don't start with ../.
-                adjusted_tool_paths.append(path_prefix_from_new_cwd + p_base)
-    else:  # No cd planned (e.g., no gleam.toml provided)
-        adjusted_tool_paths = base_tool_paths
-
-    # --- MORE DEBUG ---
-    script_content_parts.append('echo "Base tool path 0: {}" >&2'.format(base_tool_paths[0] if len(base_tool_paths) > 0 else "N/A"))
-    script_content_parts.append('echo "Path prefix from new CWD: {}" >&2'.format(path_prefix_from_new_cwd))
-    script_content_parts.append('echo "Adjusted tool path 0: {}" >&2'.format(adjusted_tool_paths[0] if len(adjusted_tool_paths) > 0 else "N/A"))
-    # --- END MORE DEBUG ---
+                erl_libs_value_for_script.append(lib_path)
+        script_content_parts.append('export ERL_LIBS="{}"'.format(":".join(erl_libs_value_for_script)))
 
     command_to_run_in_script_list = [
-        adjusted_tool_paths[0],
-        adjusted_tool_paths[1],
+        gleam_exe_wrapper.short_path, # These are relative to $TEST_SRCDIR
+        underlying_gleam_tool.short_path,
         "test",
     ]
     command_to_run_in_script_list.extend(ctx.attr.args)
 
-    if "ERL_LIBS" in env_vars:
-        erl_libs_value = ":".join(env_vars["ERL_LIBS"].split(":"))
-        script_content_parts.append('export ERL_LIBS="{}"'.format(erl_libs_value))
-
-    # For the echo, print what will actually be executed
-    # The actual command uses adjusted_tool_paths which are already prefixed
-    echo_command_list = list(command_to_run_in_script_list) # Create a copy for echoing
-    # For echoing, we want to show the paths as they would be if CWD was TEST_SRCDIR
-    # This means we need to show the non-prefixed tool paths if a cd is happening.
-    # However, the existing echo prints inner_command_execution which IS the prefixed one.
-
     safe_args_for_exec = []
-    for arg in command_to_run_in_script_list: # command_to_run_in_script_list uses adjusted_tool_paths
-        safe_args_for_exec.append("'{}'".format(arg.replace("'", "'\\''")))
+    for arg in command_to_run_in_script_list:
+        safe_args_for_exec.append("'{}'".format(arg.replace("'", "'\\''"))) # Shell-escape arguments
     inner_command_execution = " ".join(safe_args_for_exec)
 
-    if full_cd_path_for_script:
-        script_content_parts.append('echo "Executing (from PWD: $(pwd)): {}" >&2'.format(inner_command_execution))
-        script_content_parts.append("(cd \"{}\" && echo \"Successfully cd-ed. New PWD: $(pwd)\" >&2 && exec {}) || exit 1".format(full_cd_path_for_script, inner_command_execution))
-    else:
-        script_content_parts.append('echo "No cd needed. Executing (from PWD: $(pwd)): {}" >&2'.format(inner_command_execution))
-        script_content_parts.append("exec {}".format(inner_command_execution))
+    script_content_parts.append('echo "Executing (from PWD: $(pwd)): {}" >&2'.format(inner_command_execution))
+    script_content_parts.append("exec {}".format(inner_command_execution))
 
     script_content = "\n".join(script_content_parts)
 
