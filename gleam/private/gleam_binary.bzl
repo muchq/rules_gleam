@@ -84,7 +84,7 @@ def _gleam_binary_impl(ctx):
             'echo "Source dir {src} found. Preparing to copy to {dst}."; ' +
             'mkdir -p "{dst}" && ' +
             'echo "Destination dir {dst} ensured by mkdir -p."; ' +
-            'cp -pR "{src}/." "{dst}/" && ' +
+            'cp -r "{src}/." "{dst}/" && ' +
             'echo "cp command completed. Listing destination {dst}:"; ' +
             'ls -laR "{dst}"; ' +
             'echo "Copy successful to {dst}."; ' +
