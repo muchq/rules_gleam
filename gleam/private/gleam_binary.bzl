@@ -60,8 +60,20 @@ def _gleam_binary_impl(ctx):
         '"{}" "{}" export erlang-shipment'.format(wrapper_exec_path, underlying_tool_exec_path),
     )
 
-    # Source of shipment, relative to `working_dir_for_gleam` (where gleam export was run)
+    # Define this before using it in debug block
     gleam_created_shipment_path_relative_to_cwd = "build/erlang-shipment"
+
+    # --- BEGIN EXPORT DEBUG ---
+    command_script_parts.append("echo '--- DEBUG: After gleam export, before cp in gleam_binary ---'")
+    command_script_parts.append("echo \'PWD for export: $(pwd)\'")
+    command_script_parts.append("echo \'Checking source dir for cp: \"{}\"\'".format(gleam_created_shipment_path_relative_to_cwd))
+    # Attempt to list the source directory; provide a fallback message if ls fails (e.g. dir doesn't exist)
+    command_script_parts.append("(ls -laR \"{}\" || echo \'Source dir {} not found or ls failed.\')".format(gleam_created_shipment_path_relative_to_cwd, gleam_created_shipment_path_relative_to_cwd))
+    command_script_parts.append("echo \'--- END EXPORT DEBUG ---'")
+    # --- END EXPORT DEBUG ---
+
+    # Source of shipment, relative to `working_dir_for_gleam` (where gleam export was run)
+    # gleam_created_shipment_path_relative_to_cwd = "build/erlang-shipment" # Moved up
 
     # Destination: absolute path to the Bazel-declared TreeArtifact in the sandbox
     declared_bazel_output_dir_path = gleam_export_output_dir.path
