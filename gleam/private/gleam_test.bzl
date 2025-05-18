@@ -39,35 +39,71 @@ def _gleam_test_impl(ctx):
     test_runner_script_name = ctx.label.name + "_test_runner.sh"
     test_runner_script = ctx.actions.declare_file(test_runner_script_name)
 
+    base_tool_paths = [
+        gleam_exe_wrapper.short_path,
+        underlying_gleam_tool.short_path,
+    ]
+
     script_content_parts = [
         "#!/bin/sh",
         "set -eu",
-        'echo "--- GLEAM TEST RUNNER (SYNTAX FIX ATTEMPT) ---" >&2',
+        "echo '--- GLEAM TEST RUNNER (FULL LOGIC - V3) ---' >&2",
         'echo "Script path: $0" >&2',
         'echo "Initial PWD: $(pwd)" >&2',
         'echo "TEST_SRCDIR: $TEST_SRCDIR" >&2',
         'echo "TEST_WORKSPACE: $TEST_WORKSPACE" >&2',
-        'ls -la "$0" || echo "Cannot list $0 itself (error from ls)" >&2',
     ]
+
+    path_prefix_from_new_cwd = ""
+    actual_cd_path_relative_to_test_srcdir = ""
+
+    if ctx.file.gleam_toml:
+        toml_short_path = ctx.file.gleam_toml.short_path
+        # Determine the directory of gleam.toml relative to the runfiles root ($TEST_SRCDIR)
+        # This path will be like "_main/path/to/pkg" or "my_workspace/path/to/pkg"
+        if "/" in toml_short_path:
+            cd_dir = toml_short_path.rsplit("/", 1)[0]
+            # Only cd if cd_dir is not effectively the TEST_SRCDIR itself.
+            # A cd_dir like "_main" (for a root package gleam.toml) means we want to cd into $TEST_SRCDIR/_main.
+            # A cd_dir like "." or empty would mean gleam.toml is at $TEST_SRCDIR, so no cd needed.
+            if cd_dir and cd_dir != ".":
+                actual_cd_path_relative_to_test_srcdir = cd_dir
+        # If gleam.toml is at the very root of runfiles (e.g. short_path is just "gleam.toml"), no cd needed from $TEST_SRCDIR.
+
+        if actual_cd_path_relative_to_test_srcdir:
+            num_segments_in_cd = actual_cd_path_relative_to_test_srcdir.count("/")
+            path_prefix_from_new_cwd = "/".join([".."] * (num_segments_in_cd + 1)) + "/"
+
+    adjusted_tool_paths = []
+    if actual_cd_path_relative_to_test_srcdir: # If we are going to cd
+        for p in base_tool_paths:
+            adjusted_tool_paths.append(path_prefix_from_new_cwd + p)
+    else: # No cd, tools are relative to current PWD ($TEST_SRCDIR)
+        adjusted_tool_paths = base_tool_paths
+
+    command_to_run_in_script_list = [
+        adjusted_tool_paths[0],
+        adjusted_tool_paths[1],
+        "test",
+    ]
+    command_to_run_in_script_list.extend(ctx.attr.args)
 
     if "ERL_LIBS" in env_vars:
         erl_libs_value = ":".join(env_vars["ERL_LIBS"].split(":"))
         script_content_parts.append('export ERL_LIBS="{}"'.format(erl_libs_value))
-
-    command_to_run_in_script_list = [
-        gleam_exe_wrapper.short_path,
-        underlying_gleam_tool.short_path,
-        "test",
-    ]
-    command_to_run_in_script_list.extend(ctx.attr.args)
 
     safe_args_for_exec = []
     for arg in command_to_run_in_script_list:
         safe_args_for_exec.append("'{}'".format(arg.replace("'", "'\\''")))
     inner_command_execution = " ".join(safe_args_for_exec)
 
-    script_content_parts.append('echo "Executing: {}" >&2'.format(inner_command_execution))
-    script_content_parts.append("exec {}".format(inner_command_execution))
+    if actual_cd_path_relative_to_test_srcdir:
+        gleam_toml_dir_in_runfiles = "$TEST_SRCDIR/{}".format(actual_cd_path_relative_to_test_srcdir)
+        script_content_parts.append('echo "Attempting to cd to: {}" >&2'.format(gleam_toml_dir_in_runfiles))
+        script_content_parts.append("(cd \"{}\" && echo \"Successfully cd-ed. New PWD: $(pwd)\" >&2 && exec {}) || exit 1".format(gleam_toml_dir_in_runfiles, inner_command_execution))
+    else:
+        script_content_parts.append('echo "No cd needed. Executing from PWD: $(pwd)" >&2')
+        script_content_parts.append("exec {}".format(inner_command_execution))
 
     script_content = "\n".join(script_content_parts)
 
