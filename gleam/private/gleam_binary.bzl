@@ -92,8 +92,9 @@ def _gleam_binary_impl(ctx):
     runner_script = ctx.actions.declare_file(runner_script_name)
 
     # Erlang evaluation details (module, function, args)
-    # Assuming standard main/0 entry point as per original rule.
-    erl_target_module_atom = "'main'"  # Gleam module `main` or `package_name/main` usually compiles to Erlang `main`
+    # Assuming standard main/0 entry point.
+    # The module name often corresponds to the package_name in the Erlang runtime after shipment.
+    erl_target_module_atom = "'{}'".format(package_name)
     erl_target_function_atom = "'main'"
     erl_target_function_args = "[]"
 
