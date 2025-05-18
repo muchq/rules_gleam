@@ -92,7 +92,7 @@ def _gleam_binary_impl(ctx):
     runner_script = ctx.actions.declare_file(runner_script_name)
 
     # Erlang evaluation details
-    erl_target_module_for_eval = "{}@main".format(package_name) # For direct call, no Erlang atom quotes needed here
+    erl_target_module_for_eval = "{}@main".format(package_name)  # For direct call, no Erlang atom quotes needed here
     erl_target_function_for_eval = "main"
     # For a direct call like module:function(), arguments are in the call string itself.
 
@@ -103,7 +103,7 @@ def _gleam_binary_impl(ctx):
         '"$SHIPMENT_DIR/{}/ebin"'.format(package_name),  # App's own compiled BEAMs
         '"$SHIPMENT_DIR/gleam_stdlib/ebin"',  # Gleam stdlib
         # Add other known dependencies that are part of the shipment and have an ebin. Based on ls -R.
-        '"$SHIPMENT_DIR/gleeunit/ebin"', # gleeunit is a common dep and seen in shipment
+        '"$SHIPMENT_DIR/gleeunit/ebin"',  # gleeunit is a common dep and seen in shipment
     ]
     erl_pa_flags = " ".join(["-pa {}".format(p) for p in pa_paths_in_script])
 

@@ -50,7 +50,7 @@ def _gleam_test_impl(ctx):
 
     # Restore full runfiles
     runfiles_files = inputs_depset.to_list() + [test_runner_script]
-    if gleam_exe_wrapper: # Add tools if they exist
+    if gleam_exe_wrapper:  # Add tools if they exist
         runfiles_files.append(gleam_exe_wrapper)
     if underlying_gleam_tool:
         runfiles_files.append(underlying_gleam_tool)
