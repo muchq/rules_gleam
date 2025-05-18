@@ -11,6 +11,8 @@
 
 ## Installation
 
+Probably don't. But if you must...
+
 Add the following to your `MODULE.bazel` file:
 
 ```starlark
