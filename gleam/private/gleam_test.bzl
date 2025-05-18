@@ -141,7 +141,8 @@ def _gleam_test_impl(ctx):
 
     # Runfiles needed for the test to execute.
     # This includes all inputs to the gleam compilation (srcs, deps) and the gleam toolchain itself.
-    runfiles_files = inputs_depset.to_list() + [gleam_exe_wrapper, underlying_gleam_tool]
+    # Explicitly adding the test_runner_script to runfiles, though often implicit for the executable.
+    runfiles_files = inputs_depset.to_list() + [gleam_exe_wrapper, underlying_gleam_tool, test_runner_script]
     # If gleam.toml is used for CWD, ensure its directory contents are available if not already srcs.
 
     return [
