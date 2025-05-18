@@ -36,29 +36,23 @@ def _gleam_test_impl(ctx):
     if all_erl_libs_paths:
         env_vars["ERL_LIBS"] = ":".join(all_erl_libs_paths)
 
-    # Using original naming convention, as ctx.label.name didn't help launch
     test_runner_script_name = ctx.label.name + "_test_runner.sh"
     test_runner_script = ctx.actions.declare_file(test_runner_script_name)
 
     script_content_parts = [
         "#!/bin/sh",
         "set -euo pipefail",
-        "echo '--- GLEAM TEST RUNNER (SIMPLE EXEC LOGIC V2 - original name) ---' >&2",
-        "echo \\"Script path: $0\\" >&2",
-        "echo \\"Initial PWD: $(pwd)\\" >&2",
-        "echo \\"TEST_SRCDIR: $TEST_SRCDIR\\" >&2",
-        "echo \\"TEST_WORKSPACE: $TEST_WORKSPACE\\" >&2",
-        "ls -la \\\"$0\\\" || echo \\\"Cannot list $0 itself (error from ls)\\\" >&2", # Debug script itself
+        'echo "--- GLEAM TEST RUNNER (SYNTAX FIX ATTEMPT) ---" >&2',
+        'echo "Script path: $0" >&2',
+        'echo "Initial PWD: $(pwd)" >&2',
+        'echo "TEST_SRCDIR: $TEST_SRCDIR" >&2',
+        'echo "TEST_WORKSPACE: $TEST_WORKSPACE" >&2',
+        'ls -la "$0" || echo "Cannot list $0 itself (error from ls)" >&2',
     ]
 
     if "ERL_LIBS" in env_vars:
-        erl_libs_for_script = []
-        for lib_path in env_vars["ERL_LIBS"].split(":"):
-            if lib_path.startswith(ctx.workspace_name + "/") or lib_path.startswith("external/") or not lib_path.startswith("/"):
-                erl_libs_for_script.append("$TEST_SRCDIR/" + lib_path)
-            else:
-                erl_libs_for_script.append(lib_path)
-        script_content_parts.append("export ERL_LIBS=\\"{}\\";".format(":".join(erl_libs_for_script).replace("\\\"", "\\\\\\\"")))
+        erl_libs_value = ":".join(env_vars["ERL_LIBS"].split(":"))
+        script_content_parts.append('export ERL_LIBS="{}"'.format(erl_libs_value))
 
     command_to_run_in_script_list = [
         gleam_exe_wrapper.short_path,
@@ -67,21 +61,15 @@ def _gleam_test_impl(ctx):
     ]
     command_to_run_in_script_list.extend(ctx.attr.args)
 
-    # Escape arguments for safe inclusion in the shell command
-    # Each argument individually quoted.
     safe_args_for_exec = []
     for arg in command_to_run_in_script_list:
-        # Basic shell escaping: wrap in single quotes, escape internal single quotes.
-        # This is a simplification; robust shell arg escaping is complex.
-        # For .short_path and "test", this should be fine. User args might be trickier.
-        safe_args_for_exec.append("'{}'".format(arg.replace("'", "'\\\\''")))
-
+        safe_args_for_exec.append("'{}'".format(arg.replace("'", "'\\''")))
     inner_command_execution = " ".join(safe_args_for_exec)
 
-    script_content_parts.append("echo \\"Executing: {}\\") >&2".format(inner_command_execution)) # Use escaped quotes for echo
+    script_content_parts.append('echo "Executing: {}" >&2'.format(inner_command_execution))
     script_content_parts.append("exec {}".format(inner_command_execution))
 
-    script_content = "\\n".join(script_content_parts)
+    script_content = "\n".join(script_content_parts)
 
     ctx.actions.write(
         output = test_runner_script,
