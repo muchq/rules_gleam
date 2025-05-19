@@ -47,9 +47,8 @@ def _gleam_test_impl(ctx):
     script_content_parts = [
         "#!/bin/sh",
         "set -eu",
-        "echo '--- GLEAM TEST RUNNER (FULL LOGIC - V3) ---' >&2",
+        "echo '--- GLEAM TEST RUNNER ---' >&2",
         'echo "Script path: $0" >&2',
-        'echo "Initial PWD: $(pwd)" >&2',
         'echo "TEST_SRCDIR: $TEST_SRCDIR" >&2',
         'echo "TEST_WORKSPACE: $TEST_WORKSPACE" >&2',
     ]
@@ -60,6 +59,8 @@ def _gleam_test_impl(ctx):
     # This is the path relative to TEST_SRCDIR that we determined to cd into.
     # Used for calculating the .. prefix for tools.
     path_in_runfiles_to_cd_to = ""
+    # Initialize num_segments to 0 as default
+    num_segments = 0
 
     if ctx.file.gleam_toml:
         # ctx.attr.gleam_toml is a Target object (or provides an interface like one here)
@@ -105,6 +106,16 @@ def _gleam_test_impl(ctx):
         adjusted_tool_paths[1],
         "test",
     ]
+
+    # Add test_args if specified
+    if ctx.attr.test_args:
+        command_to_run_in_script_list.extend(ctx.attr.test_args)
+    # Otherwise, try to infer the module from the source file
+    elif ctx.attr.package_name and len(ctx.files.srcs) == 1:
+        test_file = ctx.files.srcs[0]
+        module_name = test_file.basename.split(".")[0]  # Remove .gleam extension
+        command_to_run_in_script_list.append(module_name)
+
     command_to_run_in_script_list.extend(ctx.attr.args)
 
     if "ERL_LIBS" in env_vars:
@@ -116,9 +127,12 @@ def _gleam_test_impl(ctx):
         safe_args_for_exec.append("'{}'".format(arg.replace("'", "'\\''")))
     inner_command_execution = " ".join(safe_args_for_exec)
 
+    # Add debug output to show the command being executed
+    script_content_parts.append('echo "Command to execute: {}" >&2'.format(inner_command_execution))
+
     if full_cd_path_for_script:
         script_content_parts.append('echo "Attempting to cd to: {}" >&2'.format(full_cd_path_for_script))
-        script_content_parts.append("(cd \"{}\" && echo \"Successfully cd-ed. New PWD: $(pwd)\" >&2 && exec {}) || exit 1".format(full_cd_path_for_script, inner_command_execution))
+        script_content_parts.append('(cd "{}" && echo "Successfully cd-ed. New PWD: $(pwd)" >&2 && exec {}) || exit 1'.format(full_cd_path_for_script, inner_command_execution))
     else:
         script_content_parts.append('echo "No cd needed (or gleam.toml not provided). Executing from PWD: $(pwd)\" >&2')
         script_content_parts.append("exec {}".format(inner_command_execution))
@@ -170,6 +184,10 @@ def _gleam_test_attrs():
             doc = "Runtime data dependencies for the test execution.",
             default = [],
         ),
+        "test_args": attr.string_list(
+            doc = "Additional arguments to pass to the gleam test command.",
+            default = [],
+        ),
     }
 
 gleam_test = rule(
@@ -177,4 +195,22 @@ gleam_test = rule(
     attrs = _gleam_test_attrs(),
     toolchains = ["//gleam:toolchain_type"],
     test = True,
+    doc = """
+    A rule to run Gleam tests.
+
+    When using this rule, you need to follow Gleam's naming conventions:
+    - For a package named "my_package" (as defined in gleam.toml), the test file should be named "my_package_test.gleam"
+    - Alternatively, you can use the test_args parameter to explicitly specify the test module to run
+
+    Example:
+    ```
+    gleam_test(
+        name = "my_package_test",
+        package_name = "my_package",
+        srcs = ["test/my_package_test.gleam"],
+        gleam_toml = ":gleam.toml",
+        deps = [":my_package_lib"],
+    )
+    ```
+    """,
 )

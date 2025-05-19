@@ -4,8 +4,8 @@ load("@rules_gleam//gleam:defs.bzl", "gleam_binary", "gleam_library", "gleam_tes
 # The `package_name` attribute should match the name in gleam.toml.
 
 gleam_library(
-    name = "my_app_lib",
-    package_name = "my_app",  # Matches name in gleam.toml
+    name = "nested_lib",
+    package_name = "nested",  # Matches name in gleam.toml
     srcs = [
         "src/lib.gleam",
     ],
@@ -13,21 +13,21 @@ gleam_library(
 )
 
 gleam_binary(
-    name = "my_app_bin",
-    package_name = "my_app",
+    name = "nested_bin",
+    package_name = "nested",
     srcs = [
-        "src/my_app.gleam",
+        "src/nested.gleam",
     ],
     gleam_toml = ":gleam.toml",
-    deps = [":my_app_lib"],
+    deps = [":nested_lib"],
 )
 
 gleam_test(
-    name = "my_app_test",
-    package_name = "my_app",
+    name = "nested_test",
+    package_name = "nested",
     srcs = [
-        "test/my_app_test.gleam",
+        "test/nested_test.gleam",
     ],
     gleam_toml = ":gleam.toml",
-    deps = [":my_app_lib"],
+    deps = [":nested_lib"],
 )
