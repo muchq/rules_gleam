@@ -6,6 +6,7 @@ def _gleam_test_impl(ctx):
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
     gleam_exe_wrapper = gleam_toolchain_info.gleam_executable
     underlying_gleam_tool = gleam_toolchain_info.underlying_gleam_tool
+
     # erlang_toolchain is used for ERL_LIBS if populated by toolchain.
     # If ERL_LIBS logic is removed, this might become unused.
     erlang_toolchain = gleam_toolchain_info.erlang_toolchain
@@ -54,11 +55,14 @@ def _gleam_test_impl(ctx):
     ]
 
     path_prefix_from_new_cwd = ""
+
     # This will be the full path used in the cd command, e.g., $TEST_SRCDIR/$TEST_WORKSPACE/path/to/toml_dir
     full_cd_path_for_script = ""
+
     # This is the path relative to TEST_SRCDIR that we determined to cd into.
     # Used for calculating the .. prefix for tools.
     path_in_runfiles_to_cd_to = ""
+
     # Initialize num_segments to 0 as default
     num_segments = 0
 
@@ -75,8 +79,8 @@ def _gleam_test_impl(ctx):
             toml_package_dir = ""
             # Consider fail() if gleam_toml is mandatory for this logic path and structure is unexpected.
 
-        path_parts_for_cd = [ctx.workspace_name] # Start with TEST_WORKSPACE
-        if toml_package_dir: # Add package path if it exists
+        path_parts_for_cd = [ctx.workspace_name]  # Start with TEST_WORKSPACE
+        if toml_package_dir:  # Add package path if it exists
             path_parts_for_cd.append(toml_package_dir)
 
         path_in_runfiles_to_cd_to = "/".join(path_parts_for_cd)
@@ -86,6 +90,7 @@ def _gleam_test_impl(ctx):
         path_prefix_from_new_cwd = "/".join([".."] * (num_segments + 1)) + "/"
 
     path_prefix_for_tools = "/".join([".."] * (num_segments + 1)) + "/"
+
     # --- Adjust tool paths ---
     adjusted_tool_paths = []
     for p_base in base_tool_paths:
@@ -110,7 +115,8 @@ def _gleam_test_impl(ctx):
     # Add test_args if specified
     if ctx.attr.test_args:
         command_to_run_in_script_list.extend(ctx.attr.test_args)
-    # Otherwise, try to infer the module from the source file
+        # Otherwise, try to infer the module from the source file
+
     elif ctx.attr.package_name and len(ctx.files.srcs) == 1:
         test_file = ctx.files.srcs[0]
         module_name = test_file.basename.split(".")[0]  # Remove .gleam extension

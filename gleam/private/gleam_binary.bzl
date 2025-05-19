@@ -67,6 +67,7 @@ def _gleam_binary_impl(ctx):
     command_script_parts.append("echo '--- DEBUG: After gleam export, before cp in gleam_binary ---'")
     command_script_parts.append("echo \'PWD for export: $(pwd)\'")
     command_script_parts.append("echo \'Checking source dir for cp: \"{}\"\'".format(gleam_created_shipment_path_relative_to_cwd))
+
     # Attempt to list the source directory; provide a fallback message if ls fails (e.g. dir doesn't exist)
     command_script_parts.append("(ls -laR \"{}\" || echo \'Source dir {} not found or ls failed.\')".format(gleam_created_shipment_path_relative_to_cwd, gleam_created_shipment_path_relative_to_cwd))
     command_script_parts.append("echo \'--- END EXPORT DEBUG ---'")
@@ -81,20 +82,20 @@ def _gleam_binary_impl(ctx):
     # Copy the generated shipment into the Bazel-declared output directory.
     copy_block_string = (
         'if [ -d "{src}" ]; then ' +
-            'echo "Source dir {src} found. Preparing to copy to {dst}."; ' +
-            'mkdir -p "{dst}" && ' +
-            'echo "Destination dir {dst} ensured by mkdir -p."; ' +
-            'cp -r "{src}/." "{dst}/" && ' +
-            'echo "cp command completed. Listing destination {dst}:"; ' +
-            'ls -laR "{dst}"; ' +
-            'echo "Copy successful to {dst}."; ' +
-        'else ' +
-            'echo "Gleam export source dir {src} not found after running in $PWD! This is an error."; exit 1; ' +
-        'fi'
+        'echo "Source dir {src} found. Preparing to copy to {dst}."; ' +
+        'mkdir -p "{dst}" && ' +
+        'echo "Destination dir {dst} ensured by mkdir -p."; ' +
+        'cp -r "{src}/." "{dst}/" && ' +
+        'echo "cp command completed. Listing destination {dst}:"; ' +
+        'ls -laR "{dst}"; ' +
+        'echo "Copy successful to {dst}."; ' +
+        "else " +
+        'echo "Gleam export source dir {src} not found after running in $PWD! This is an error."; exit 1; ' +
+        "fi"
     )
     command_script_parts.append(copy_block_string.format(
-        src=gleam_created_shipment_path_relative_to_cwd,
-        dst=declared_bazel_output_dir_path,
+        src = gleam_created_shipment_path_relative_to_cwd,
+        dst = declared_bazel_output_dir_path,
     ))
 
     command_str = " && ".join(command_script_parts)
@@ -127,7 +128,7 @@ def _gleam_binary_impl(ctx):
     pa_paths_in_script = [
         '"$SHIPMENT_DIR/{}/ebin"'.format(package_name),  # App's own compiled BEAMs (e.g., my_app/ebin which has main.beam)
         '"$SHIPMENT_DIR/gleam_stdlib/ebin"',  # Gleam stdlib
-        '"$SHIPMENT_DIR/gleeunit/ebin"', # gleeunit is a common dep and seen in shipment
+        '"$SHIPMENT_DIR/gleeunit/ebin"',  # gleeunit is a common dep and seen in shipment
     ]
     erl_pa_flags = " ".join(["-pa {}".format(p) for p in pa_paths_in_script])
 
@@ -297,7 +298,7 @@ fi
     # Also make the runner script directly depend on the output directory
     # This ensures the directory is properly included in the runfiles
     runfiles = runfiles.merge(
-        ctx.runfiles(files = [gleam_export_output_dir])
+        ctx.runfiles(files = [gleam_export_output_dir]),
     )
 
     return [
