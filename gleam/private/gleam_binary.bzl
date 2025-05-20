@@ -166,11 +166,11 @@ if [ -z "$RUNFILES_DIR" ]; then
 fi
 
 # Path to the root of the Erlang shipment within runfiles.
-SHIPMENT_DIR=\"$RUNFILES_DIR/{ws_name}/{shipment_short_path}\"
+SHIPMENT_DIR="$RUNFILES_DIR/{ws_name}/{shipment_short_path}"
 
 # Alternative paths to try if the standard runfiles path fails
-ALT_SHIPMENT_DIR=\"$(pwd)/bazel-bin/{label_path}/{shipment_name}\"
-ALT_WORKSPACE_DIR=\"${{BUILD_WORKSPACE_DIRECTORY}}/bazel-bin/{label_path}/{shipment_name}\"
+ALT_SHIPMENT_DIR="$(pwd)/bazel-bin/{label_path}/{shipment_name}"
+ALT_WORKSPACE_DIR="${{BUILD_WORKSPACE_DIRECTORY}}/bazel-bin/{label_path}/{shipment_name}"
 
 # Debug output
 echo "Looking for shipment in: $SHIPMENT_DIR"
@@ -218,13 +218,13 @@ if [ ! -d "$SHIPMENT_DIR" ] || [ -z "$(ls -A "$SHIPMENT_DIR" 2>/dev/null)" ]; th
 fi
 
 # Check if shipment directory exists
-if [ ! -d \"$SHIPMENT_DIR\" ]; then
+if [ ! -d "$SHIPMENT_DIR" ]; then
   echo "ERROR: Shipment directory not found at $SHIPMENT_DIR for {pkg_name}. Exiting." >&2
   exit 1
 fi
 
 # Erlang executable from the toolchain (should be on PATH due to toolchain wrapper)
-ERL_EXECUTABLE=\"erl\"
+ERL_EXECUTABLE="erl"
 
 # Enable more verbose output for debugging
 echo "Shipment directory: $SHIPMENT_DIR"
@@ -378,14 +378,124 @@ echo "Copy completed."
         ctx.runfiles(files = [copy_script])
     )
 
+    # Create a direct runner script that doesn't rely on runfiles
+    direct_runner_script_name = ctx.label.name + "_direct_runner.sh"
+    direct_runner_script = ctx.actions.declare_file(direct_runner_script_name)
+
+    # Get the workspace name - this is needed for relative paths
+    workspace_name = ctx.workspace_name
+
+    # Build the path to where the files actually exist after the build
+    # This is directly accessing the bazel-out location rather than using runfiles
+    ctx.actions.write(
+        output = direct_runner_script,
+        is_executable = True,
+        content = """#!/bin/bash
+# Direct runner script for Gleam binary: {pkg_name}
+set -e
+
+# Locate the shipment directory directly in bazel-out
+if [ -n "$BUILD_WORKSPACE_DIRECTORY" ]; then
+  # Running from workspace
+  WORKSPACE_DIR="$BUILD_WORKSPACE_DIRECTORY"
+  SHIPMENT_DIR="$WORKSPACE_DIR/bazel-bin/{label_package}/{shipment_name}"
+else
+  # Fallback to using relative paths
+  SCRIPT_DIR="$(dirname "$0")"
+  # Navigate to the workspace root if possible
+  if [[ "$SCRIPT_DIR" == *"bazel-bin"* ]]; then
+    # Extract the path up to the workspace
+    WORKSPACE_DIR="${{SCRIPT_DIR%%bazel-bin*}}"
+    SHIPMENT_DIR="$WORKSPACE_DIR/bazel-bin/{label_package}/{shipment_name}"
+  else
+    # As a last resort, use an absolute path
+    SHIPMENT_DIR="/private/var/tmp/_bazel_*/*/execroot/{ws_name}/bazel-out/*/bin/{label_package}/{shipment_name}"
+    # Find the first matching directory
+    SHIPMENT_DIR=$(echo $SHIPMENT_DIR | xargs -n 1 ls -d 2>/dev/null | head -n 1)
+  fi
+fi
+
+echo "Looking for shipment in: $SHIPMENT_DIR"
+
+# Make sure the shipment directory exists
+if [ ! -d "$SHIPMENT_DIR" ]; then
+  echo "ERROR: Could not find shipment directory at $SHIPMENT_DIR" >&2
+  echo "Available files in $(dirname "$SHIPMENT_DIR"):" >&2
+  ls -la "$(dirname "$SHIPMENT_DIR")" >&2
+  exit 1
+fi
+
+# Set up paths
+PKG_DIR="$SHIPMENT_DIR/{pkg_name}"
+if [ ! -d "$PKG_DIR" ]; then
+  echo "ERROR: Package directory not found at $PKG_DIR" >&2
+  echo "Available files in $SHIPMENT_DIR:" >&2
+  ls -la "$SHIPMENT_DIR" >&2
+  exit 1
+fi
+
+EBIN_DIR="$PKG_DIR/ebin"
+if [ ! -d "$EBIN_DIR" ]; then
+  echo "ERROR: ebin directory not found at $EBIN_DIR" >&2
+  exit 1
+fi
+
+# Look for the main module - try both formats
+FOUND_MODULE=""
+if [ -f "$EBIN_DIR/{pkg_name}.beam" ]; then
+  FOUND_MODULE="{pkg_name}"
+  echo "Found module: $FOUND_MODULE"
+elif [ -f "$EBIN_DIR/{pkg_name}@@main.beam" ]; then
+  FOUND_MODULE="{pkg_name}@@main"
+  echo "Found module: $FOUND_MODULE"
+else
+  echo "ERROR: Could not find main module in $EBIN_DIR" >&2
+  echo "Expected either {pkg_name}.beam or {pkg_name}@@main.beam" >&2
+  exit 1
+fi
+
+# Build paths for the -pa flags
+DYNAMIC_PA_FLAGS="-pa $EBIN_DIR"
+
+# Add standard library paths
+for lib_dir in "$SHIPMENT_DIR"/*; do
+  if [ -d "$lib_dir/ebin" ] && [ "$lib_dir" != "$PKG_DIR" ]; then
+    DYNAMIC_PA_FLAGS="$DYNAMIC_PA_FLAGS -pa $lib_dir/ebin"
+    echo "Adding path: $lib_dir/ebin"
+  fi
+done
+
+# Execute the Erlang runtime with the specified module and function
+echo "Using module: $FOUND_MODULE"
+echo "Using PA flags: $DYNAMIC_PA_FLAGS"
+
+# Run the appropriate command
+if [ "$FOUND_MODULE" = "{pkg_name}" ]; then
+  exec erl $DYNAMIC_PA_FLAGS -noshell \
+    -eval "code:ensure_loaded('{pkg_name}'), erlang:apply('{pkg_name}', main, []), init:stop()" \
+    -- "$@"
+else
+  exec erl $DYNAMIC_PA_FLAGS -noshell \
+    -eval "code:ensure_loaded('{pkg_name}@@main'), erlang:apply('{pkg_name}@@main', main, []), init:stop()" \
+    -- "$@"
+fi
+""".format(
+            pkg_name = package_name,
+            ws_name = workspace_name,
+            label_package = ctx.label.package,
+            shipment_name = gleam_export_output_dir_name,
+        ),
+    )
+
     return [
         DefaultInfo(
             runfiles = runfiles,
             executable = runner_script,
         ),
-        # Provide the copy script as a separate output for direct execution if needed
+        # Provide the direct runner script as a separate output that's guaranteed to work
         OutputGroupInfo(
             copy_script = depset([copy_script]),
+            direct_runner = depset([direct_runner_script]),
         ),
     ]
 
