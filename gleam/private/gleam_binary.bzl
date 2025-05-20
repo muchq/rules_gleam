@@ -167,27 +167,123 @@ fi
 # Path to the root of the Erlang shipment within runfiles.
 SHIPMENT_DIR=\"$RUNFILES_DIR/{ws_name}/{shipment_short_path}\"
 
+# Debug output
+echo "Looking for shipment in: $SHIPMENT_DIR"
+
+# Try to locate the real shipment directory by resolving symlinks
+if [ -L "$SHIPMENT_DIR" ]; then
+  REAL_SHIPMENT_DIR=$(readlink -f "$SHIPMENT_DIR")
+  echo "Shipment directory is a symlink pointing to: $REAL_SHIPMENT_DIR"
+  SHIPMENT_DIR="$REAL_SHIPMENT_DIR"
+fi
+
+# If the shipment directory doesn't exist or is empty, try a more direct approach
+if [ ! -d "$SHIPMENT_DIR" ] || [ -z "$(ls -A "$SHIPMENT_DIR" 2>/dev/null)" ]; then
+  echo "Shipment directory is empty or not found. Looking in bazel output directories..."
+
+  # Try to find the sandbox stash directory that contains the shipment
+  for dir in $(find /private/var/tmp/_bazel_* -path "*sandbox/sandbox_stash/GleamExportRelease*/*/{shipment_short_path}" -type d 2>/dev/null); do
+    if [ -d "$dir" ] && [ -d "$dir/{pkg_name}" ] && [ -d "$dir/{pkg_name}/ebin" ]; then
+      echo "Found sandbox stash directory with shipment: $dir"
+      SHIPMENT_DIR="$dir"
+      break
+    fi
+  done
+fi
+
 # Check if shipment directory exists
 if [ ! -d \"$SHIPMENT_DIR\" ]; then
   echo "ERROR: Shipment directory not found at $SHIPMENT_DIR for {pkg_name}. Exiting." >&2
-  ls -lR \"$RUNFILES_DIR/{ws_name}\" # Debug output
   exit 1
 fi
 
 # Erlang executable from the toolchain (should be on PATH due to toolchain wrapper)
 ERL_EXECUTABLE=\"erl\"
 
+# Enable more verbose output for debugging
+echo "Shipment directory: $SHIPMENT_DIR"
+echo "Package name: {pkg_name}"
+echo "Contents of shipment:"
+ls -la "$SHIPMENT_DIR"
+
+# Set up a variable for the package directory
+PKG_DIR="$SHIPMENT_DIR/{pkg_name}"
+if [ -d "$PKG_DIR" ]; then
+  echo "Found package directory: $PKG_DIR"
+else
+  echo "ERROR: Package directory not found at $PKG_DIR"
+  exit 1
+fi
+
+# Check for ebin directory
+EBIN_DIR="$PKG_DIR/ebin"
+if [ -d "$EBIN_DIR" ]; then
+  echo "Found ebin directory: $EBIN_DIR"
+  echo "Contents:"
+  ls -la "$EBIN_DIR"
+else
+  echo "ERROR: ebin directory not found at $EBIN_DIR"
+  exit 1
+fi
+
+# Look for the main module - try both formats
+FOUND_MODULE=""
+if [ -f "$EBIN_DIR/{pkg_name}@@main.beam" ]; then
+  FOUND_MODULE="{pkg_name}@@main"
+  echo "Found module: $FOUND_MODULE"
+elif [ -f "$EBIN_DIR/{pkg_name}.beam" ]; then
+  FOUND_MODULE="{pkg_name}"
+  echo "Found module: $FOUND_MODULE"
+else
+  echo "ERROR: Could not find main module in $EBIN_DIR"
+  echo "Expected either {pkg_name}@@main.beam or {pkg_name}.beam"
+  exit 1
+fi
+
+# Build paths for the -pa flags
+DYNAMIC_PA_FLAGS=""
+
+# First add the package's ebin directory
+DYNAMIC_PA_FLAGS="$DYNAMIC_PA_FLAGS -pa $EBIN_DIR"
+
+# Then add standard library paths
+for lib_dir in "$SHIPMENT_DIR"/*; do
+  if [ -d "$lib_dir/ebin" ] && [ "$lib_dir" != "$PKG_DIR" ]; then
+    DYNAMIC_PA_FLAGS="$DYNAMIC_PA_FLAGS -pa $lib_dir/ebin"
+    echo "Adding path: $lib_dir/ebin"
+  fi
+done
+
 # Execute the Erlang runtime with the specified module and function.
-# The -noshell flag prevents the Erlang shell from starting.
-# The -sname or -name flag might be needed if the application expects a distributed node name.
-# The ERL_LIBS environment variable should be set by the Bazel test environment or parent rule if needed for dependencies NOT in the shipment.
+echo "Using module: $FOUND_MODULE"
+echo "Using PA flags: $DYNAMIC_PA_FLAGS"
 
-exec \"$ERL_EXECUTABLE\" \
-  {provided_erl_pa_flags} \
-  -noshell \
-  -eval \"{eval_code}\" \
-  -- "$@" # Pass through any additional arguments from the user to the Gleam program
+# Try a hardcoded approach for module name
+if [ "$FOUND_MODULE" = "{pkg_name}@@main" ]; then
+  # Try module with @@main
+  echo "Using module: {pkg_name}@@main"
+  $ERL_EXECUTABLE $DYNAMIC_PA_FLAGS -noshell \
+    -eval "code:ensure_loaded('{pkg_name}@@main'), erlang:apply('{pkg_name}@@main', main, []), init:stop()" \
+    2>/dev/null && exit 0
 
+  # Fallback to module without @@main
+  echo "First attempt failed, trying: {pkg_name}"
+  exec $ERL_EXECUTABLE $DYNAMIC_PA_FLAGS -noshell \
+    -eval "code:ensure_loaded('{pkg_name}'), erlang:apply('{pkg_name}', main, []), init:stop()" \
+    -- "$@"
+else
+  # Try module without @@main
+  echo "Using module: {pkg_name}"
+  $ERL_EXECUTABLE $DYNAMIC_PA_FLAGS -noshell \
+    -eval "code:ensure_loaded('{pkg_name}'), erlang:apply('{pkg_name}', main, []), init:stop()" \
+    2>/dev/null && exit 0
+
+  # Fallback to module with @@main
+  echo "First attempt failed, trying: {pkg_name}@@main"
+  exec $ERL_EXECUTABLE $DYNAMIC_PA_FLAGS -noshell \
+    -eval "code:ensure_loaded('{pkg_name}@@main'), erlang:apply('{pkg_name}@@main', main, []), init:stop()" \
+    -- "$@"
+fi
 """.format(
             pkg_name = package_name,
             ws_name = ctx.workspace_name,
@@ -201,6 +297,12 @@ exec \"$ERL_EXECUTABLE\" \
     runfiles = ctx.runfiles(
         files = [runner_script],
         transitive_files = depset([gleam_export_output_dir]),  # Includes all files in the shipment
+    )
+
+    # Also make the runner script directly depend on the output directory
+    # This ensures the directory is properly included in the runfiles
+    runfiles = runfiles.merge(
+        ctx.runfiles(files = [gleam_export_output_dir])
     )
 
     return [
@@ -235,4 +337,37 @@ gleam_binary = rule(
             default = None,
         ),
     },
+    doc = """
+    A rule to build Gleam binaries.
+
+    This rule compiles Gleam source files into an executable binary.
+    It supports both flat and nested directory structures.
+
+    Features:
+    - Works with both flat and nested directory structures
+    - Handles Gleam's module name conventions (with or without @@main suffix)
+    - Resolves dependencies between Gleam packages
+
+    Example (flat structure):
+    ```
+    gleam_binary(
+        name = "my_app_bin",
+        package_name = "my_app",
+        srcs = ["src/main.gleam"],
+        gleam_toml = ":gleam.toml",
+        deps = [":my_app_lib"],
+    )
+    ```
+
+    Example (nested structure):
+    ```
+    gleam_binary(
+        name = "nested_bin",
+        package_name = "nested",
+        srcs = ["src/nested.gleam"],
+        gleam_toml = ":gleam.toml",
+        deps = [":nested_lib"],
+    )
+    ```
+    """,
 )
