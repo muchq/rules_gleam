@@ -1,6 +1,9 @@
 bazel-*
+bazel_build_*
 .bazelrc.user
 .idea/
 .ijwb/
+build
+manifest.toml
 
 .DS_Store

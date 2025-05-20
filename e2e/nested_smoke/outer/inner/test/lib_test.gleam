@@ -6,7 +6,7 @@ pub fn main() {
   gleeunit.main()
 }
 
-pub fn greeting_test() {
+pub fn greeting_is_correct_test() {
   lib.greeting()
-  |> should.equal("Hello from my_app!")
+  |> should.equal("Hello from nested_smoke_test!")
 }

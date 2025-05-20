@@ -1,0 +1,8 @@
+bazel_dep(name = "muchq_rules_gleam", version = "0.0.1", repo_name = "rules_gleam")
+local_path_override(
+    module_name = "muchq_rules_gleam",
+    path = "../..",
+)
+
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "platforms", version = "0.0.11")
