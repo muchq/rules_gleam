@@ -350,10 +350,227 @@ exec erl $PA_FLAGS -noshell \
         ),
     )
 
+    # Create a completely standalone runner
+    standalone_runner_name = ctx.label.name + "_standalone.sh"
+    standalone_runner = ctx.actions.declare_file(standalone_runner_name)
+
+    ctx.actions.write(
+        output = standalone_runner,
+        is_executable = True,
+        content = """#!/bin/bash
+# Standalone runner for Gleam binary {pkg_name}
+set -e
+
+# Get directory of this script
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TEMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR"' EXIT
+
+echo "Setting up Gleam environment in $TEMP_DIR..."
+
+# Copy all the files needed to run the program
+mkdir -p "$TEMP_DIR/{pkg_name}/ebin"
+mkdir -p "$TEMP_DIR/gleam_stdlib/ebin"
+mkdir -p "$TEMP_DIR/gleeunit/ebin"
+
+# Find the shipment directory or source files
+SOURCE_FOUND=false
+
+# Option 1: Check build output directory
+BUILD_OUTPUT="$SCRIPT_DIR/{shipment_name}"
+if [ -d "$BUILD_OUTPUT" ] && [ -d "$BUILD_OUTPUT/{pkg_name}" ]; then
+    echo "Found built files at $BUILD_OUTPUT"
+    cp -R "$BUILD_OUTPUT/." "$TEMP_DIR/"
+    SOURCE_FOUND=true
+fi
+
+# Option 2: Check bazel-bin directory
+if [ "$SOURCE_FOUND" = false ]; then
+    BAZEL_BIN="$(cd "$SCRIPT_DIR/../.." 2>/dev/null && pwd)/bazel-bin/{pkg_path}/{shipment_name}"
+    if [ -d "$BAZEL_BIN" ] && [ -d "$BAZEL_BIN/{pkg_name}" ]; then
+        echo "Found built files in bazel-bin: $BAZEL_BIN"
+        cp -R "$BAZEL_BIN/." "$TEMP_DIR/"
+        SOURCE_FOUND=true
+    fi
+fi
+
+# Option 3: Check bazel-out directory
+if [ "$SOURCE_FOUND" = false ]; then
+    for BAZEL_OUT_DIR in $(find /private/var/tmp/_bazel_* -path "*/bazel-out/*/bin/{pkg_path}/{shipment_name}" -type d 2>/dev/null); do
+        if [ -d "$BAZEL_OUT_DIR" ] && [ -d "$BAZEL_OUT_DIR/{pkg_name}" ]; then
+            echo "Found built files in bazel-out: $BAZEL_OUT_DIR"
+            cp -R "$BAZEL_OUT_DIR/." "$TEMP_DIR/"
+            SOURCE_FOUND=true
+            break
+        fi
+    done
+fi
+
+# Option 4: Check for sandbox stash
+if [ "$SOURCE_FOUND" = false ]; then
+    for SANDBOX_DIR in $(find /private/var/tmp/_bazel_* -path "*/sandbox/sandbox_stash/GleamExportRelease/*/execroot/*/{pkg_path}/{shipment_name}" -type d 2>/dev/null); do
+        if [ -d "$SANDBOX_DIR" ] && [ -d "$SANDBOX_DIR/{pkg_name}" ]; then
+            echo "Found built files in sandbox stash: $SANDBOX_DIR"
+            cp -R "$SANDBOX_DIR/." "$TEMP_DIR/"
+            SOURCE_FOUND=true
+            break
+        fi
+    done
+
+    # Check other sandbox patterns
+    if [ "$SOURCE_FOUND" = false ]; then
+        for SANDBOX_DIR in $(find /private/var/tmp/_bazel_* -path "*/sandbox/*/execroot/*/{pkg_path}/{shipment_name}" -type d 2>/dev/null); do
+            if [ -d "$SANDBOX_DIR" ] && [ -d "$SANDBOX_DIR/{pkg_name}" ]; then
+                echo "Found built files in sandbox directory: $SANDBOX_DIR"
+                cp -R "$SANDBOX_DIR/." "$TEMP_DIR/"
+                SOURCE_FOUND=true
+                break
+            fi
+        done
+    fi
+
+    # Check parent repo sandbox
+    if [ "$SOURCE_FOUND" = false ]; then
+        for SANDBOX_DIR in $(find /private/var/tmp/_bazel_* -path "*/sandbox/*/execroot/*/external/*/{pkg_path}/{shipment_name}" -type d 2>/dev/null); do
+            if [ -d "$SANDBOX_DIR" ] && [ -d "$SANDBOX_DIR/{pkg_name}" ]; then
+                echo "Found built files in external sandbox: $SANDBOX_DIR"
+                cp -R "$SANDBOX_DIR/." "$TEMP_DIR/"
+                SOURCE_FOUND=true
+                break
+            fi
+        done
+    fi
+fi
+
+if [ "$SOURCE_FOUND" = false ]; then
+    echo "ERROR: Could not find Gleam files anywhere."
+    exit 1
+fi
+
+# Verify the temp directory structure
+if [ ! -d "$TEMP_DIR/{pkg_name}/ebin" ]; then
+    echo "ERROR: Expected directory structure not found in $TEMP_DIR"
+    find "$TEMP_DIR" -type d
+    exit 1
+fi
+
+# Find the module file
+MODULE_NAME=""
+if [ -f "$TEMP_DIR/{pkg_name}/ebin/{pkg_name}.beam" ]; then
+    MODULE_NAME="{pkg_name}"
+elif [ -f "$TEMP_DIR/{pkg_name}/ebin/{pkg_name}@@main.beam" ]; then
+    MODULE_NAME="{pkg_name}@@main"
+else
+    echo "ERROR: Could not find module beam file in $TEMP_DIR/{pkg_name}/ebin"
+    ls -la "$TEMP_DIR/{pkg_name}/ebin"
+    exit 1
+fi
+
+echo "Found module: $MODULE_NAME"
+
+# Construct the -pa options for all ebin directories
+PA_FLAGS=""
+for DIR in $(find "$TEMP_DIR" -name "ebin" -type d); do
+    PA_FLAGS="$PA_FLAGS -pa $DIR"
+done
+
+echo "Running Erlang with flags: $PA_FLAGS"
+
+# Run Erlang with the appropriate module
+exec erl $PA_FLAGS -noshell \
+  -eval "code:ensure_loaded('$MODULE_NAME'), erlang:apply('$MODULE_NAME', main, []), init:stop()" \
+  -- "$@"
+""".format(
+            pkg_name = package_name,
+            shipment_name = gleam_export_output_dir_name,
+            pkg_path = ctx.label.package,
+        ),
+    )
+
+    # Create a fully embedded script that doesn't rely on any external files
+    fully_embedded_runner_name = ctx.label.name + "_embedded.sh"
+    fully_embedded_runner = ctx.actions.declare_file(fully_embedded_runner_name)
+
+    # This script will include:
+    # 1. A custom Erlang module extractor
+    # 2. Base64-encoded beam files
+    # 3. Script to set up and run the code
+
+    # Create this script in a separate action to get access to the built files
+    ctx.actions.run_shell(
+        outputs = [fully_embedded_runner],
+        inputs = [gleam_export_output_dir],
+        command = """#!/bin/bash
+set -e
+
+# Find the main beam file
+MAIN_BEAM_FILE=$(find "{shipment_dir}/{pkg_name}/ebin" -name "*.beam" | grep -E "({pkg_name}.beam|{pkg_name}@@main.beam)" | head -1)
+if [ -z "$MAIN_BEAM_FILE" ]; then
+    echo "ERROR: Could not find main beam file"
+    exit 1
+fi
+
+# Determine module name from filename
+MODULE_NAME=$(basename "$MAIN_BEAM_FILE" .beam)
+
+# Create the embedded script with header
+cat > "{output_file}" << 'EOL'
+#!/bin/bash
+# Fully embedded runner for Gleam application - doesn't need any external files
+set -e
+
+# Create a temp directory for our extracted files
+TEMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR"' EXIT
+
+# Create directory structure for beam files
+mkdir -p "$TEMP_DIR/{pkg_name}/ebin"
+
+# Function to decode and extract a base64-encoded file
+extract_file() {{
+    local dest="$1"
+    local base64data="$2"
+    echo "$base64data" | base64 -d > "$dest"
+}}
+
+echo "Extracting embedded beam files..."
+EOL
+
+# Encode and embed the main beam file
+echo "Embedding main beam file: $MAIN_BEAM_FILE"
+MAIN_BEAM_FILENAME=$(basename "$MAIN_BEAM_FILE")
+MAIN_BEAM_BASE64=$(cat "$MAIN_BEAM_FILE" | base64)
+echo "extract_file \\"$TEMP_DIR/{pkg_name}/ebin/$MAIN_BEAM_FILENAME\\" \\"$MAIN_BEAM_BASE64\\"" >> "{output_file}"
+
+# Add the module execution code
+cat >> "{output_file}" << 'EOL'
+
+# Find the module filename
+MODULE_FILENAME=$(ls "$TEMP_DIR/{pkg_name}/ebin/"*.beam | head -1)
+MODULE_NAME=$(basename "$MODULE_FILENAME" .beam)
+
+echo "Extracted module: $MODULE_NAME"
+echo "Running Erlang with extracted module..."
+
+# Run the Erlang VM with our extracted module
+exec erl -pa "$TEMP_DIR/{pkg_name}/ebin" -noshell \
+  -eval "code:ensure_loaded('$MODULE_NAME'), erlang:apply('$MODULE_NAME', main, []), init:stop()" \
+  -- "$@"
+EOL
+
+# Make the script executable
+chmod +x "{output_file}"
+""".format(
+            shipment_dir = gleam_export_output_dir.path,
+            pkg_name = package_name,
+            output_file = fully_embedded_runner.path,
+        ),
+    )
+
     # Create runfiles with explicit symlinks for proper file materialization
     # Standard runfiles with main script and all the files it needs
     runfiles = ctx.runfiles(
-        files = [runner_script, gleam_export_output_dir, direct_runner],
+        files = [runner_script, gleam_export_output_dir, direct_runner, standalone_runner, fully_embedded_runner],
     )
 
     # Create explicit symlinks for important paths
@@ -376,6 +593,7 @@ exec erl $PA_FLAGS -noshell \
         ),
         OutputGroupInfo(
             direct_runner = depset([direct_runner]),
+            standalone_runner = depset([standalone_runner]),
         ),
     ]
 
