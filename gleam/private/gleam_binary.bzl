@@ -170,6 +170,8 @@ SHIPMENT_DIR=\"$RUNFILES_DIR/{ws_name}/{shipment_short_path}\"
 
 # Debug output
 echo "Looking for shipment in: $SHIPMENT_DIR"
+echo "RUNFILES_DIR: $RUNFILES_DIR"
+echo "Working directory: $(pwd)"
 
 # Try to locate the real shipment directory by resolving symlinks
 if [ -L "$SHIPMENT_DIR" ]; then
@@ -177,6 +179,10 @@ if [ -L "$SHIPMENT_DIR" ]; then
   echo "Shipment directory is a symlink pointing to: $REAL_SHIPMENT_DIR"
   SHIPMENT_DIR="$REAL_SHIPMENT_DIR"
 fi
+
+# List the actual content of the symlink target
+echo "Contents of symlink target:"
+ls -la "$SHIPMENT_DIR" || echo "Failed to list contents of $SHIPMENT_DIR"
 
 # If the shipment directory doesn't exist or is empty, try a more direct approach
 if [ ! -d "$SHIPMENT_DIR" ] || [ -z "$(ls -A "$SHIPMENT_DIR" 2>/dev/null)" ]; then
@@ -305,6 +311,19 @@ fi
     runfiles = runfiles.merge(
         ctx.runfiles(files = [gleam_export_output_dir])
     )
+
+    # When used from an external repository, ensure we fully traverse all subdirectories
+    # Find all files in the shipment directory and explicitly add them to runfiles
+    shipment_files = []
+    for root, dirs, files in ctx.path(gleam_export_output_dir).walk():
+        for file in files:
+            file_path = root.get_child(file)
+            shipment_files.append(file_path)
+
+    if shipment_files:
+        runfiles = runfiles.merge(
+            ctx.runfiles(files = shipment_files)
+        )
 
     return [
         DefaultInfo(
