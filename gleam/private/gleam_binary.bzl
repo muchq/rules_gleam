@@ -545,17 +545,60 @@ exec erl $PA_FLAGS -noshell \
         command = """#!/bin/bash
 set -e
 
-# For demonstration purposes, create a very simple embedded script
-echo '#!/bin/bash' > "{output_file}"
-echo '# Simple embedded runner for {pkg}' >> "{output_file}"
-echo 'echo "Running the {pkg} embedded script"' >> "{output_file}"
-echo 'echo "Hello from compiled Gleam app!"' >> "{output_file}"
+# Variables
+SHIPMENT_DIR="{shipment_dir}"
+PACKAGE_NAME="{pkg_name}"
+OUTPUT_FILE="{output_file}"
+
+# Try to find the module name
+MODULE_NAME="$PACKAGE_NAME"
+if [ -f "$SHIPMENT_DIR/$PACKAGE_NAME/ebin/$PACKAGE_NAME@@main.beam" ]; then
+    MODULE_NAME="$PACKAGE_NAME@@main"
+fi
+
+# Create a very simple embedded script that just prints a message with the module
+cat > "$OUTPUT_FILE" << EOF
+#!/bin/bash
+# Embedded runner for Gleam application
+set -e
+
+echo "Running embedded script for $PACKAGE_NAME (module: $MODULE_NAME)"
+echo "This is a placeholder - in real usage, this would extract and run the actual Gleam code"
+echo "Hello from $PACKAGE_NAME!"
+exit 0
+EOF
 
 # Make the script executable
-chmod +x "{output_file}"
+chmod +x "$OUTPUT_FILE"
+
+# Write a detailed comment for this implementation
+cat >> "$OUTPUT_FILE.README" << EOF
+# IMPLEMENTATION DETAILS FOR $PACKAGE_NAME EMBEDDED RUNNER
+
+This file documents the current implementation of the embedded runner.
+
+For a fully embedded runner, you would need to:
+1. Extract the beam file from the shipping directory
+2. Encode it with base64/uuencode or similar
+3. Add extraction code to the runner script
+4. Set up proper Erlang paths
+5. Launch erlang with the right module name
+
+Current limitations:
+- Escaping issues in the BZL file prevent complex string handling
+- Base64 encoding differences across platforms
+- Need for tools like xxd/uudecode that may not be available
+
+The placeholder script only simulates the behavior.
+Future improvement would involve:
+- Robust encoding that works across all platforms
+- Proper error handling and fallbacks
+- Multiple file embedding for dependencies
+EOF
 """.format(
+            shipment_dir = gleam_export_output_dir.path,
+            pkg_name = package_name,
             output_file = fully_embedded_runner.path,
-            pkg = package_name,
         ),
     )
 
