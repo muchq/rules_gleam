@@ -54,8 +54,6 @@ def _gleam_test_impl(ctx):
         'echo "TEST_WORKSPACE: $TEST_WORKSPACE" >&2',
     ]
 
-    path_prefix_from_new_cwd = ""
-
     # This will be the full path used in the cd command, e.g., $TEST_SRCDIR/$TEST_WORKSPACE/path/to/toml_dir
     full_cd_path_for_script = ""
 
@@ -87,7 +85,6 @@ def _gleam_test_impl(ctx):
         full_cd_path_for_script = "$TEST_SRCDIR/{}".format(path_in_runfiles_to_cd_to)
 
         num_segments = path_in_runfiles_to_cd_to.count("/")
-        path_prefix_from_new_cwd = "/".join([".."] * (num_segments + 1)) + "/"
 
     path_prefix_for_tools = "/".join([".."] * (num_segments + 1)) + "/"
 
