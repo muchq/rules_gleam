@@ -117,6 +117,7 @@ def _gleam_binary_impl(ctx):
 
     # Erlang evaluation details
     # Gleam convention is that there should be a main/0 function in a module with the same name as the package
+    # Modules can be named either 'package_name' or 'package_name@@main', with the former being preferred
     erl_target_module_atom = "'{}'".format(package_name)
     erl_target_function_atom = "'main'"
     erl_target_function_args = "[]"
@@ -228,15 +229,15 @@ fi
 
 # Look for the main module - try both formats
 FOUND_MODULE=""
-if [ -f "$EBIN_DIR/{pkg_name}@@main.beam" ]; then
-  FOUND_MODULE="{pkg_name}@@main"
-  echo "Found module: $FOUND_MODULE"
-elif [ -f "$EBIN_DIR/{pkg_name}.beam" ]; then
+if [ -f "$EBIN_DIR/{pkg_name}.beam" ]; then
   FOUND_MODULE="{pkg_name}"
+  echo "Found module: $FOUND_MODULE"
+elif [ -f "$EBIN_DIR/{pkg_name}@@main.beam" ]; then
+  FOUND_MODULE="{pkg_name}@@main"
   echo "Found module: $FOUND_MODULE"
 else
   echo "ERROR: Could not find main module in $EBIN_DIR"
-  echo "Expected either {pkg_name}@@main.beam or {pkg_name}.beam"
+  echo "Expected either {pkg_name}.beam or {pkg_name}@@main.beam"
   exit 1
 fi
 
@@ -258,20 +259,8 @@ done
 echo "Using module: $FOUND_MODULE"
 echo "Using PA flags: $DYNAMIC_PA_FLAGS"
 
-# Try a hardcoded approach for module name
-if [ "$FOUND_MODULE" = "{pkg_name}@@main" ]; then
-  # Try module with @@main
-  echo "Using module: {pkg_name}@@main"
-  $ERL_EXECUTABLE $DYNAMIC_PA_FLAGS -noshell \
-    -eval "code:ensure_loaded('{pkg_name}@@main'), erlang:apply('{pkg_name}@@main', main, []), init:stop()" \
-    2>/dev/null && exit 0
-
-  # Fallback to module without @@main
-  echo "First attempt failed, trying: {pkg_name}"
-  exec $ERL_EXECUTABLE $DYNAMIC_PA_FLAGS -noshell \
-    -eval "code:ensure_loaded('{pkg_name}'), erlang:apply('{pkg_name}', main, []), init:stop()" \
-    -- "$@"
-else
+# Try the approach based on which module was found
+if [ "$FOUND_MODULE" = "{pkg_name}" ]; then
   # Try module without @@main
   echo "Using module: {pkg_name}"
   $ERL_EXECUTABLE $DYNAMIC_PA_FLAGS -noshell \
@@ -282,6 +271,18 @@ else
   echo "First attempt failed, trying: {pkg_name}@@main"
   exec $ERL_EXECUTABLE $DYNAMIC_PA_FLAGS -noshell \
     -eval "code:ensure_loaded('{pkg_name}@@main'), erlang:apply('{pkg_name}@@main', main, []), init:stop()" \
+    -- "$@"
+else
+  # Try module with @@main
+  echo "Using module: {pkg_name}@@main"
+  $ERL_EXECUTABLE $DYNAMIC_PA_FLAGS -noshell \
+    -eval "code:ensure_loaded('{pkg_name}@@main'), erlang:apply('{pkg_name}@@main', main, []), init:stop()" \
+    2>/dev/null && exit 0
+
+  # Fallback to module without @@main
+  echo "First attempt failed, trying: {pkg_name}"
+  exec $ERL_EXECUTABLE $DYNAMIC_PA_FLAGS -noshell \
+    -eval "code:ensure_loaded('{pkg_name}'), erlang:apply('{pkg_name}', main, []), init:stop()" \
     -- "$@"
 fi
 """.format(
