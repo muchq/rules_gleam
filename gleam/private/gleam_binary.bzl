@@ -168,8 +168,14 @@ fi
 # Path to the root of the Erlang shipment within runfiles.
 SHIPMENT_DIR=\"$RUNFILES_DIR/{ws_name}/{shipment_short_path}\"
 
+# Alternative paths to try if the standard runfiles path fails
+ALT_SHIPMENT_DIR=\"$(pwd)/bazel-bin/{label_path}/{shipment_name}\"
+ALT_WORKSPACE_DIR=\"${{BUILD_WORKSPACE_DIRECTORY}}/bazel-bin/{label_path}/{shipment_name}\"
+
 # Debug output
 echo "Looking for shipment in: $SHIPMENT_DIR"
+echo "Alternative path 1: $ALT_SHIPMENT_DIR"
+echo "Alternative path 2: $ALT_WORKSPACE_DIR"
 echo "RUNFILES_DIR: $RUNFILES_DIR"
 echo "Working directory: $(pwd)"
 
@@ -180,22 +186,35 @@ if [ -L "$SHIPMENT_DIR" ]; then
   SHIPMENT_DIR="$REAL_SHIPMENT_DIR"
 fi
 
-# List the actual content of the symlink target
+# Check if the standard path has content
 echo "Contents of symlink target:"
 ls -la "$SHIPMENT_DIR" || echo "Failed to list contents of $SHIPMENT_DIR"
 
-# If the shipment directory doesn't exist or is empty, try a more direct approach
+# If the shipment directory doesn't exist or is empty, try the alternative paths
 if [ ! -d "$SHIPMENT_DIR" ] || [ -z "$(ls -A "$SHIPMENT_DIR" 2>/dev/null)" ]; then
-  echo "Shipment directory is empty or not found. Looking in bazel output directories..."
+  echo "Shipment directory is empty or not found. Trying alternative paths..."
 
-  # Try to find the sandbox stash directory that contains the shipment
-  for dir in $(find /private/var/tmp/_bazel_* -path "*sandbox/sandbox_stash/GleamExportRelease*/*/{shipment_short_path}" -type d 2>/dev/null); do
-    if [ -d "$dir" ] && [ -d "$dir/{pkg_name}" ] && [ -d "$dir/{pkg_name}/ebin" ]; then
-      echo "Found sandbox stash directory with shipment: $dir"
-      SHIPMENT_DIR="$dir"
-      break
-    fi
-  done
+  # First try the local bazel-bin path
+  if [ -d "$ALT_SHIPMENT_DIR" ] && [ -n "$(ls -A "$ALT_SHIPMENT_DIR" 2>/dev/null)" ]; then
+    echo "Found shipment at alternative path 1: $ALT_SHIPMENT_DIR"
+    SHIPMENT_DIR="$ALT_SHIPMENT_DIR"
+  # Then try the workspace bazel-bin path
+  elif [ -d "$ALT_WORKSPACE_DIR" ] && [ -n "$(ls -A "$ALT_WORKSPACE_DIR" 2>/dev/null)" ]; then
+    echo "Found shipment at alternative path 2: $ALT_WORKSPACE_DIR"
+    SHIPMENT_DIR="$ALT_WORKSPACE_DIR"
+  # Finally, try to find it in sandbox stash directories
+  else
+    echo "Looking in bazel output directories..."
+
+    # Try to find the sandbox stash directory that contains the shipment
+    for dir in $(find /private/var/tmp/_bazel_* -path "*sandbox/sandbox_stash/GleamExportRelease*/*/{shipment_short_path}" -type d 2>/dev/null); do
+      if [ -d "$dir" ] && [ -d "$dir/{pkg_name}" ] && [ -d "$dir/{pkg_name}/ebin" ]; then
+        echo "Found sandbox stash directory with shipment: $dir"
+        SHIPMENT_DIR="$dir"
+        break
+      fi
+    done
+  fi
 fi
 
 # Check if shipment directory exists
@@ -297,6 +316,8 @@ fi
             shipment_short_path = gleam_export_output_dir.short_path,  # e.g., erlang_shipment_for_my_app
             provided_erl_pa_flags = erl_pa_flags,
             eval_code = shell_safe_eval_code,
+            label_path = ctx.label.package,
+            shipment_name = gleam_export_output_dir_name,
         ),
     )
 
@@ -322,10 +343,49 @@ fi
         })
     ])
 
+    # Create a script that will copy the shipment directory for runtime access
+    # This is the most direct way to ensure the files are available at runtime
+    copy_script_name = ctx.label.name + "_copy_shipment.sh"
+    copy_script = ctx.actions.declare_file(copy_script_name)
+
+    ctx.actions.write(
+        output = copy_script,
+        content = """#!/bin/bash
+# Copy shipment directory to ensure it's available at runtime
+set -e
+
+# Source directory with all the Erlang files
+SRC="{src_dir}"
+
+# Destination in runfiles where the script will look for these files
+# This matches the path used in the runner script
+DEST="${{BUILD_WORKSPACE_DIRECTORY}}/bazel-bin/{label_path}/{shipment_name}"
+
+echo "Copying shipment from $SRC to $DEST"
+mkdir -p "$DEST"
+cp -R "$SRC/." "$DEST/"
+echo "Copy completed."
+""".format(
+            src_dir = gleam_export_output_dir.path,
+            label_path = ctx.label.package,
+            shipment_name = gleam_export_output_dir_name,
+        ),
+        is_executable = True,
+    )
+
+    # Make the shipment copy script part of the outputs
+    runfiles = runfiles.merge(
+        ctx.runfiles(files = [copy_script])
+    )
+
     return [
         DefaultInfo(
             runfiles = runfiles,
             executable = runner_script,
+        ),
+        # Provide the copy script as a separate output for direct execution if needed
+        OutputGroupInfo(
+            copy_script = depset([copy_script]),
         ),
     ]
 
