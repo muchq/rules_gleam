@@ -312,18 +312,15 @@ fi
         ctx.runfiles(files = [gleam_export_output_dir])
     )
 
-    # When used from an external repository, ensure we fully traverse all subdirectories
-    # Find all files in the shipment directory and explicitly add them to runfiles
-    shipment_files = []
-    for root, dirs, files in ctx.path(gleam_export_output_dir).walk():
-        for file in files:
-            file_path = root.get_child(file)
-            shipment_files.append(file_path)
-
-    if shipment_files:
-        runfiles = runfiles.merge(
-            ctx.runfiles(files = shipment_files)
-        )
+    # When used from an external repository, ensure we create a stronger runfiles dependency
+    # for the shipment directory and its contents
+    runfiles = runfiles.merge_all([
+        runfiles,
+        # Add the shipment directory again with root_symlinks to ensure it's properly included
+        ctx.runfiles(root_symlinks = {
+            "{}/{}".format(ctx.workspace_name, gleam_export_output_dir.short_path): gleam_export_output_dir
+        })
+    ])
 
     return [
         DefaultInfo(
