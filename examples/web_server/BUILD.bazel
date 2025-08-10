@@ -1,0 +1,48 @@
+load("//gleam:defs.bzl", "gleam_library", "gleam_binary", "gleam_test")
+
+# Library containing all the application logic
+gleam_library(
+    name = "web_server_lib",
+    srcs = [
+        "src/router.gleam",
+        "src/web_server.gleam",
+    ],
+    package_name = "web_server",
+    gleam_toml = "gleam.toml",
+)
+
+# Filegroup for sources (needed by binary)
+filegroup(
+    name = "server_srcs",
+    srcs = [
+        "src/router.gleam",
+        "src/web_server.gleam",
+        "gleam.toml",
+    ],
+)
+
+# Executable binary that can be deployed
+gleam_binary(
+    name = "web_server",
+    srcs = [],
+    srcs_deps = [":server_srcs"],
+    deps = [":web_server_lib"],
+    package_name = "web_server",
+    gleam_toml = "gleam.toml",
+    entry_module = "web_server",
+)
+
+# Tests for the web server
+gleam_test(
+    name = "web_server_test",
+    srcs = [
+        "src/router.gleam",
+        "src/web_server.gleam",
+    ],
+    test_srcs = [
+        "test/router_test.gleam",
+        "test/web_server_test.gleam",
+    ],
+    package_name = "web_server",
+    gleam_toml = "gleam.toml",
+)

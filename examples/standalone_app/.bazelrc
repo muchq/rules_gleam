@@ -1,0 +1,5 @@
+# Enable bzlmod
+common --enable_bzlmod
+
+# Ensure we're using a compatible Bazel version
+common --experimental_enable_bzlmod

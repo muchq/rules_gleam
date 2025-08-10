@@ -1,0 +1,10 @@
+name = "web_server"
+version = "1.0.0"
+target = "erlang"
+description = "A simple web server example using Bazel"
+
+[dependencies]
+gleam_stdlib = ">= 0.34.0 and < 2.0.0"
+
+[dev-dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"

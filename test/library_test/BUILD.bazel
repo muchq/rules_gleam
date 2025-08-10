@@ -1,0 +1,21 @@
+load("//gleam/private:gleam_library_v2.bzl", "gleam_library_v2")
+
+# Test simple library compilation
+gleam_library_v2(
+    name = "hello_lib",
+    srcs = ["src/hello.gleam"],
+    package_name = "test_lib",  # This matches gleam.toml
+    gleam_toml = "gleam.toml",
+)
+
+# Test library with dependencies - this will compile both together
+gleam_library_v2(
+    name = "app_lib",
+    srcs = [
+        "src/hello.gleam",
+        "src/greet.gleam",
+    ],
+    deps = [],
+    package_name = "test_lib",
+    gleam_toml = "gleam.toml",
+)

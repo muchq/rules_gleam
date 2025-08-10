@@ -1,0 +1,13 @@
+load("//gleam/private:gleam_test_v2.bzl", "gleam_test")
+
+gleam_test(
+    name = "calculator_test",
+    srcs = [
+        "src/calculator.gleam",
+    ],
+    test_srcs = [
+        "test/calculator_test.gleam",
+    ],
+    package_name = "calculator",
+    gleam_toml = "gleam.toml",
+)

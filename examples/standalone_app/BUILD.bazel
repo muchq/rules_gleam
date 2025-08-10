@@ -1,0 +1,34 @@
+load("@muchq_rules_gleam//gleam:defs.bzl", "gleam_binary", "gleam_library", "gleam_test")
+
+# A simple Gleam library
+gleam_library(
+    name = "app_lib",
+    srcs = glob(["src/**/*.gleam"]),
+    package_name = "standalone_app",
+    gleam_toml = "gleam.toml",
+)
+
+# Source files for the binary
+filegroup(
+    name = "app_srcs",
+    srcs = glob(["src/**/*.gleam"]) + ["gleam.toml"],
+)
+
+# Deployable binary
+gleam_binary(
+    name = "app",
+    srcs_deps = [":app_srcs"],
+    deps = [":app_lib"],
+    package_name = "standalone_app",
+    gleam_toml = "gleam.toml",
+    entry_module = "app",
+)
+
+# Tests
+gleam_test(
+    name = "app_test",
+    srcs = glob(["src/**/*.gleam"]),
+    test_srcs = glob(["test/**/*.gleam"]),
+    package_name = "standalone_app",
+    gleam_toml = "gleam.toml",
+)

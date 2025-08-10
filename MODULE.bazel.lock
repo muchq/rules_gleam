@@ -165,8 +165,8 @@
   "moduleExtensions": {
     "//gleam:extensions.bzl%gleam": {
       "general": {
-        "bzlTransitiveDigest": "yDYEfcwtvRfVDXu71XEtV0M+nUzPoVEHZUQ6AtnbdGs=",
-        "usagesDigest": "zneMGpw0l45CcELvStfA/rh1gVpN0A6Yw3z/QRpc6wM=",
+        "bzlTransitiveDigest": "TLfgloSTTpVWOGWI69AgSvt88lPvFDclyAvAGWTsCZg=",
+        "usagesDigest": "M+oM4xO0ulgscfleMMh4bDgjSYFSYBkXuDyr8bF3WiU=",
         "recordedFileInputs": {},
         "recordedDirentsInputs": {},
         "envVariables": {},
@@ -175,35 +175,35 @@
             "repoRuleId": "@@//gleam:repositories.bzl%gleam_repositories",
             "attributes": {
               "platform": "x86_64-apple-darwin",
-              "gleam_version": "1.10.0"
+              "gleam_version": "1.12.0"
             }
           },
           "gleam_aarch64-apple-darwin": {
             "repoRuleId": "@@//gleam:repositories.bzl%gleam_repositories",
             "attributes": {
               "platform": "aarch64-apple-darwin",
-              "gleam_version": "1.10.0"
+              "gleam_version": "1.12.0"
             }
           },
           "gleam_x86_64-unknown-linux-gnu": {
             "repoRuleId": "@@//gleam:repositories.bzl%gleam_repositories",
             "attributes": {
               "platform": "x86_64-unknown-linux-gnu",
-              "gleam_version": "1.10.0"
+              "gleam_version": "1.12.0"
             }
           },
           "gleam_aarch64-unknown-linux-gnu": {
             "repoRuleId": "@@//gleam:repositories.bzl%gleam_repositories",
             "attributes": {
               "platform": "aarch64-unknown-linux-gnu",
-              "gleam_version": "1.10.0"
+              "gleam_version": "1.12.0"
             }
           },
           "gleam_x86_64-pc-windows-msvc": {
             "repoRuleId": "@@//gleam:repositories.bzl%gleam_repositories",
             "attributes": {
               "platform": "x86_64-pc-windows-msvc",
-              "gleam_version": "1.10.0"
+              "gleam_version": "1.12.0"
             }
           },
           "gleam_toolchains": {

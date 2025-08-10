@@ -9,59 +9,59 @@ def _gleam_binary_impl(ctx):
     erlang_toolchain = gleam_toolchain_info.erlang_toolchain
     package_name = ctx.attr.package_name
 
-    # `gleam export erlang-shipment` creates output in `build/erlang-shipment` relative to CWD.
-    # We declare a directory for Bazel to track this output.
-    gleam_export_output_dir_name = "erlang_shipment_for_" + package_name
-    gleam_export_output_dir = ctx.actions.declare_directory(gleam_export_output_dir_name)
-
+    # Collect all compiled dependencies
     dep_output_dirs = []
     dep_srcs = []
+    all_dep_dirs = []  # All transitive dependency directories
+    
     for dep in ctx.attr.deps:
         if GleamLibraryProviderInfo in dep:
             dep_info = dep[GleamLibraryProviderInfo]
             dep_output_dirs.append(dep_info.output_pkg_build_dir)
             dep_srcs.extend(dep_info.srcs)
+            all_dep_dirs.append(dep_info.output_pkg_build_dir)
+            if hasattr(dep_info, "transitive_deps"):
+                all_dep_dirs.extend(dep_info.transitive_deps.to_list())
 
+    # Build the main binary's code if it has its own sources
+    main_output_dir = ctx.actions.declare_directory("build_" + package_name)
+    
     all_input_items = list(ctx.files.srcs) + dep_srcs
     all_input_items.extend(dep_output_dirs)
     if ctx.file.gleam_toml:
         all_input_items.append(ctx.file.gleam_toml)
     inputs_depset = depset(all_input_items)
 
+    # Build environment with all dependency paths
     env_vars = {}
     all_erl_libs_paths = []
     if hasattr(erlang_toolchain, "erl_libs_path_str") and erlang_toolchain.erl_libs_path_str:
         all_erl_libs_paths.append(erlang_toolchain.erl_libs_path_str)
-    for dep_dir in dep_output_dirs:
+    for dep_dir in all_dep_dirs:
         all_erl_libs_paths.append(dep_dir.path)
     if all_erl_libs_paths:
         env_vars["ERL_LIBS"] = ":".join(all_erl_libs_paths)
 
+    # Build the main module
     command_script_parts = []
-    working_dir_for_gleam = "."  # Default to execroot
+    working_dir_for_gleam = "."
     if ctx.file.gleam_toml:
         toml_dir = ctx.file.gleam_toml.dirname
         if toml_dir and toml_dir != ".":
             working_dir_for_gleam = toml_dir
             command_script_parts.append('cd "{}"'.format(working_dir_for_gleam))
 
-    # Gleam export command. It outputs to <CWD>/build/erlang-shipment.
-    # The wrapper script expects the actual gleam binary path as its first argument.
+    # Just build, don't export - we'll assemble our own release
     command_script_parts.append(
-        '"{}" "{}" export erlang-shipment'.format(gleam_exe_wrapper.path, underlying_gleam_tool.path),
+        '"{}" "{}" build'.format(gleam_exe_wrapper.path, underlying_gleam_tool.path),
     )
-
-    # Source of shipment, relative to `working_dir_for_gleam` (where gleam export was run)
-    gleam_created_shipment_path_relative_to_cwd = "build/erlang-shipment"
-
-    # Destination: absolute path to the Bazel-declared TreeArtifact in the sandbox
-    declared_bazel_output_dir_path = gleam_export_output_dir.path
-
-    # Copy the generated shipment into the Bazel-declared output directory.
+    
+    # Copy the built artifacts to our output directory
+    gleam_build_output = "build/dev/erlang/" + package_name
     command_script_parts.append(
-        'if [ -d "{src}" ]; then mkdir -p "{dst}" && cp -pR "{src}/." "{dst}/"; else echo "Gleam export source dir {src} not found after running in $PWD!"; exit 1; fi'.format(
-            src = gleam_created_shipment_path_relative_to_cwd,
-            dst = declared_bazel_output_dir_path,
+        'if [ -d "{src}" ]; then mkdir -p "{dst}" && cp -pR "{src}/." "{dst}/"; fi'.format(
+            src = gleam_build_output,
+            dst = main_output_dir.path,
         ),
     )
 
@@ -70,112 +70,211 @@ def _gleam_binary_impl(ctx):
     ctx.actions.run_shell(
         command = command_str,
         inputs = inputs_depset,
-        outputs = [gleam_export_output_dir],
+        outputs = [main_output_dir],
         env = env_vars,
         tools = depset([gleam_exe_wrapper, underlying_gleam_tool]),
-        progress_message = "Exporting Gleam release for {}".format(package_name),
-        mnemonic = "GleamExportRelease",
+        progress_message = "Building Gleam binary for {}".format(package_name),
+        mnemonic = "GleamBuildBinary",
     )
 
-    # Create a wrapper script to run the binary.
-    # This script will be the executable for the gleam_binary rule.
-    runner_script_name = ctx.label.name + "_runner.sh"
-    runner_script = ctx.actions.declare_file(runner_script_name)
+    # Create a release directory with all dependencies
+    release_dir = ctx.actions.declare_directory(ctx.label.name + "_release")
+    
+    # Assemble all BEAM files and dependencies into the release directory
+    assemble_commands = []
+    assemble_commands.append('mkdir -p "{}/lib"'.format(release_dir.path))
+    
+    # Copy main application
+    assemble_commands.append('cp -pR "{}" "{}/lib/{}"'.format(
+        main_output_dir.path,
+        release_dir.path,
+        package_name,
+    ))
+    
+    # Copy all dependencies
+    for dep_dir in all_dep_dirs:
+        # Extract package name from the path (last component)
+        dep_name = dep_dir.basename if hasattr(dep_dir, "basename") else dep_dir.path.split("/")[-1]
+        assemble_commands.append('cp -pR "{}" "{}/lib/{}"'.format(
+            dep_dir.path,
+            release_dir.path,
+            dep_name,
+        ))
+    
+    # Copy gleam_stdlib and gleam_erlang if available
+    if hasattr(erlang_toolchain, "erl_libs_path_str") and erlang_toolchain.erl_libs_path_str:
+        for stdlib in ["gleam_stdlib", "gleam_erlang"]:
+            stdlib_path = erlang_toolchain.erl_libs_path_str + "/" + stdlib
+            assemble_commands.append(
+                'if [ -d "{}" ]; then cp -pR "{}" "{}/lib/{}"; fi'.format(
+                    stdlib_path,
+                    stdlib_path,
+                    release_dir.path,
+                    stdlib,
+                )
+            )
 
-    # Erlang evaluation details (module, function, args)
-    # Assuming standard main/0 entry point as per original rule.
-    erl_target_module_atom = "'main'"  # Gleam module `main` or `package_name/main` usually compiles to Erlang `main`
-    erl_target_function_atom = "'main'"
-    erl_target_function_args = "[]"
-
-    # Construct -pa paths for Erlang. These paths are inside the runfiles shipment directory.
-    # Paths are relative to where the `erl` command will be run from (inside the wrapper script).
-    # $SHIPMENT_DIR will be defined in the script to point to the root of the copied shipment.
-    pa_paths_in_script = [
-        '"$SHIPMENT_DIR/{}/ebin"'.format(package_name),  # App's own compiled BEAMs
-        '"$SHIPMENT_DIR/gleam_stdlib/ebin"',  # Gleam stdlib (assuming it's part of shipment)
-        # TODO: Add other necessary lib ebin paths from the shipment if any
-    ]
-    erl_pa_flags = " ".join(["-pa {}".format(p) for p in pa_paths_in_script])
-
-    # Erlang command to execute the main function.
-    # init:stop() is important for the Erlang VM to exit after main returns.
-    erl_eval_cmd = (
-        # 'code:load_abs(...)' might not be needed if -pa paths are correct and modules are standard.
-        "erlang:apply({}, {}, {}), init:stop().".format(
-            erl_target_module_atom,
-            erl_target_function_atom,
-            erl_target_function_args,
-        )
+    assemble_cmd = " && ".join(assemble_commands)
+    
+    all_inputs = [main_output_dir] + all_dep_dirs
+    ctx.actions.run_shell(
+        command = assemble_cmd,
+        inputs = depset(all_inputs),
+        outputs = [release_dir],
+        progress_message = "Assembling Gleam release for {}".format(package_name),
+        mnemonic = "GleamAssembleRelease",
     )
 
-    # Ensure the eval string is properly escaped for the shell script
-    # by only escaping double quotes. Single quotes for atoms are fine.
-    shell_safe_eval_code = erl_eval_cmd.replace('"', '\\"')
+    # Create runner script that works with runfiles properly
+    runner_script = ctx.actions.declare_file(ctx.label.name)
+    
+    # Determine the entry module and function
+    entry_module = ctx.attr.entry_module if ctx.attr.entry_module else "main"
+    entry_function = ctx.attr.entry_function if ctx.attr.entry_function else "main"
+    
+    # Build -pa paths for all libraries in the release
+    pa_paths = []
+    pa_paths.append('"${{RELEASE_DIR}}/lib/{}/ebin"'.format(package_name))
+    for dep in ctx.attr.deps:
+        if GleamLibraryProviderInfo in dep:
+            dep_name = dep[GleamLibraryProviderInfo].package_name
+            pa_paths.append('"${{RELEASE_DIR}}/lib/{}/ebin"'.format(dep_name))
+    pa_paths.append('"${{RELEASE_DIR}}/lib/gleam_stdlib/ebin"')
+    pa_paths.append('"${{RELEASE_DIR}}/lib/gleam_erlang/ebin"')
+    
+    erl_pa_flags = " ".join(["-pa {}".format(p) for p in pa_paths])
 
-    ctx.actions.write(
-        output = runner_script,
-        is_executable = True,
-        content = """#!/bin/bash
-# Runner script for Gleam binary: {pkg_name}
-set -e
+    runner_content = """#!/bin/bash
+set -euo pipefail
 
-# Determine RUNFILES_DIR. This is a common Bazel pattern.
-RUNFILES_DIR_FROM_SCRIPT_PATH="$0.runfiles"
-if [ -z "$RUNFILES_DIR" ]; then
-  if [ -d "$RUNFILES_DIR_FROM_SCRIPT_PATH" ]; then
-    RUNFILES_DIR="$RUNFILES_DIR_FROM_SCRIPT_PATH"
-  elif [ -d "_main.runfiles" ]; then # Common fallback for 'bazel run' from workspace root
-    RUNFILES_DIR="_main.runfiles"
-  elif [ -d "../_main.runfiles" ]; then # Common fallback for 'bazel run' from bazel-bin/pkg
-    RUNFILES_DIR="../_main.runfiles"
+# Find the runfiles directory
+if [ -z "${RUNFILES_DIR:-}" ]; then
+  if [ -f "$0.runfiles/MANIFEST" ]; then
+    RUNFILES_DIR="$0.runfiles"
+  elif [ -f "$0.runfiles_manifest" ]; then
+    RUNFILES_DIR=$(grep -m1 "^[^ ]* " "$0.runfiles_manifest" | cut -d' ' -f2 | sed 's|/[^/]*$||')
   else
-    echo "ERROR: RUNFILES_DIR not set and could not be determined for {pkg_name}. Exiting." >&2
+    echo "ERROR: Cannot find runfiles directory" >&2
     exit 1
   fi
 fi
 
-# Path to the root of the Erlang shipment within runfiles.
-SHIPMENT_DIR=\"$RUNFILES_DIR/{ws_name}/{shipment_short_path}\"
+# Set up paths
+RELEASE_DIR="${{RUNFILES_DIR}}/{workspace}/{release_path}"
 
-# Check if shipment directory exists
-if [ ! -d \"$SHIPMENT_DIR\" ]; then
-  echo "ERROR: Shipment directory not found at $SHIPMENT_DIR for {pkg_name}. Exiting." >&2
-  ls -lR \"$RUNFILES_DIR/{ws_name}\" # Debug output
+if [ ! -d "$RELEASE_DIR" ]; then
+  echo "ERROR: Release directory not found at $RELEASE_DIR" >&2
   exit 1
 fi
 
-# Erlang executable from the toolchain (should be on PATH due to toolchain wrapper)
-ERL_EXECUTABLE=\"erl\"
+# Find Erlang runtime
+if command -v erl >/dev/null 2>&1; then
+  ERL="erl"
+else
+  echo "ERROR: Erlang runtime (erl) not found in PATH" >&2
+  exit 1
+fi
 
-# Execute the Erlang runtime with the specified module and function.
-# The -noshell flag prevents the Erlang shell from starting.
-# The -sname or -name flag might be needed if the application expects a distributed node name.
-# The ERL_LIBS environment variable should be set by the Bazel test environment or parent rule if needed for dependencies NOT in the shipment.
-
-exec \"$ERL_EXECUTABLE\" \
-  {provided_erl_pa_flags} \
+# Run the application
+exec "$ERL" \
+  {pa_flags} \
   -noshell \
-  -eval \"{eval_code}\" \
-  -- "$@" # Pass through any additional arguments from the user to the Gleam program
-
+  -s {entry_module} {entry_function} \
+  -s init stop \
+  -- "$@"
 """.format(
-            pkg_name = package_name,
-            ws_name = ctx.workspace_name,
-            shipment_short_path = gleam_export_output_dir.short_path,  # e.g., erlang_shipment_for_my_app
-            provided_erl_pa_flags = erl_pa_flags,
-            eval_code = shell_safe_eval_code,
-        ),
+        workspace = ctx.workspace_name,
+        release_path = release_dir.short_path,
+        pa_flags = erl_pa_flags,
+        entry_module = entry_module,
+        entry_function = entry_function,
     )
 
-    # The runfiles need to include the runner script itself and the entire Erlang shipment directory.
+    ctx.actions.write(
+        output = runner_script,
+        content = runner_content,
+        is_executable = True,
+    )
+
+    # Create deployable tar.gz archive
+    archive = ctx.actions.declare_file(ctx.label.name + "_deploy.tar.gz")
+    
+    # Create a standalone runner script for the archive
+    standalone_runner = ctx.actions.declare_file(ctx.label.name + "_standalone_runner.sh")
+    standalone_content = """#!/bin/bash
+set -euo pipefail
+
+# This script should be run from the directory containing the extracted archive
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+RELEASE_DIR="${SCRIPT_DIR}"
+
+if [ ! -d "$RELEASE_DIR/lib" ]; then
+  echo "ERROR: This script must be run from the extracted archive directory" >&2
+  echo "       Expected to find lib/ directory in $RELEASE_DIR" >&2
+  exit 1
+fi
+
+# Find Erlang runtime
+if command -v erl >/dev/null 2>&1; then
+  ERL="erl"
+else
+  echo "ERROR: Erlang runtime (erl) not found in PATH" >&2
+  exit 1
+fi
+
+# Build -pa paths
+PA_FLAGS=""
+for dir in "$RELEASE_DIR"/lib/*/ebin; do
+  if [ -d "$dir" ]; then
+    PA_FLAGS="$PA_FLAGS -pa '$dir'"
+  fi
+done
+
+# Run the application
+eval exec "$ERL" \
+  $PA_FLAGS \
+  -noshell \
+  -s {entry_module} {entry_function} \
+  -s init stop \
+  -- "$@"
+""".format(
+        entry_module = entry_module,
+        entry_function = entry_function,
+    )
+    
+    ctx.actions.write(
+        output = standalone_runner,
+        content = standalone_content,
+        is_executable = True,
+    )
+    
+    # Create the tar.gz archive
+    tar_cmd = """
+    cd {release_dir} && \
+    cp {runner_script} ./run.sh && \
+    tar czf {archive} lib/ run.sh
+    """.format(
+        release_dir = release_dir.path,
+        runner_script = standalone_runner.path,
+        archive = archive.path,
+    )
+    
+    ctx.actions.run_shell(
+        command = tar_cmd,
+        inputs = depset([release_dir, standalone_runner]),
+        outputs = [archive],
+        progress_message = "Creating deployable archive for {}".format(package_name),
+        mnemonic = "GleamCreateArchive",
+    )
+
+    # Provide runfiles for bazel run
     runfiles = ctx.runfiles(
-        files = [runner_script],
-        transitive_files = depset([gleam_export_output_dir]),  # Includes all files in the shipment
+        files = [runner_script, release_dir],
     )
 
     return [
         DefaultInfo(
+            files = depset([archive, runner_script]),
             runfiles = runfiles,
             executable = runner_script,
         ),
@@ -199,12 +298,19 @@ gleam_binary = rule(
             mandatory = True,
         ),
         "gleam_toml": attr.label(
-            doc = "The gleam.toml file for this binary package. If provided, its directory is used as CWD for gleam export.",
+            doc = "The gleam.toml file for this binary package.",
             allow_single_file = True,
             default = None,
         ),
-        # Add other attributes like 'args', 'env' if needed for the runner script.
+        "entry_module": attr.string(
+            doc = "The Erlang module name containing the entry point (default: 'main').",
+            default = "",
+        ),
+        "entry_function": attr.string(
+            doc = "The function name to call in the entry module (default: 'main').",
+            default = "",
+        ),
     },
     toolchains = ["//gleam:toolchain_type"],
-    executable = True,  # Indicates this rule produces an executable target.
+    executable = True,
 )

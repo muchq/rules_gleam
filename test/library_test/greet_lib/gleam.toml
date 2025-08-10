@@ -1,0 +1,7 @@
+name = "greet"
+version = "1.0.0"  
+target = "erlang"
+
+[dependencies]
+gleam_stdlib = ">= 0.34.0 and < 2.0.0"
+hello = { path = "../hello_lib" }

@@ -6,7 +6,9 @@ GleamLibraryProviderInfo = provider(
         "output_pkg_build_dir": "TreeArtifact for the package's output directory (build/erlang/lib/<package_name>).",
         "package_name": "Name of the Gleam package.",
         "srcs": "List of source files.",
-        # TODO: Consider adding transitive sources or other necessary info for consumers.
+        "ebin_dir": "Path to the ebin directory containing compiled BEAM files.",
+        "transitive_deps": "Depset of all transitive dependency output directories.",
+        "gleam_toml": "The gleam.toml file if present.",
     },
 )
 
@@ -79,9 +81,7 @@ def _gleam_library_impl(ctx):
     command_parts.append(gleam_build_cmd)
 
     # Define where `gleam build` places its output relative to its working directory.
-    # This is typically `build/dev/erlang/<package_name>` for the default 'dev' profile.
-    # If working_dir_for_gleam_build is ".", this path is relative to execroot.
-    # If cd'd into toml_dir, this path is relative to toml_dir.
+    # Gleam actually outputs to build/dev/erlang/<package_name> for libraries
     gleam_internal_output_subdir = "build/dev/erlang/" + package_name
 
     # Command to copy the build artifacts from Gleam's internal output location
@@ -109,12 +109,23 @@ def _gleam_library_impl(ctx):
         mnemonic = "GleamBuildLib",
     )
 
+    # Collect transitive dependencies
+    transitive_deps = []
+    for dep in ctx.attr.deps:
+        if GleamLibraryProviderInfo in dep:
+            transitive_deps.append(dep[GleamLibraryProviderInfo].output_pkg_build_dir)
+            if hasattr(dep[GleamLibraryProviderInfo], "transitive_deps"):
+                transitive_deps.extend(dep[GleamLibraryProviderInfo].transitive_deps.to_list())
+    
     return [
         DefaultInfo(files = depset([output_pkg_build_dir])),
         GleamLibraryProviderInfo(
             output_pkg_build_dir = output_pkg_build_dir,
             package_name = package_name,
-            srcs = ctx.files.srcs,  # Pass along the original sources
+            srcs = ctx.files.srcs,
+            ebin_dir = output_pkg_build_dir.path + "/ebin",
+            transitive_deps = depset(transitive_deps),
+            gleam_toml = ctx.file.gleam_toml,
         ),
     ]
 

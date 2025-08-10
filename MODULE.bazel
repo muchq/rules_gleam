@@ -16,7 +16,7 @@ bazel_dep(name = "aspect_bazel_lib", version = "1.32.1", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "8.0.3", dev_dependency = True)
 
 gleam = use_extension("//gleam:extensions.bzl", "gleam")
-gleam.toolchain(version = "1.10.0")
+gleam.toolchain(version = "1.12.0")
 use_repo(gleam, "gleam_toolchains", "local_config_erlang")
 
 register_toolchains("@gleam_toolchains//:all")

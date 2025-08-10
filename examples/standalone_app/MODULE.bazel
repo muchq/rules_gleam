@@ -1,0 +1,25 @@
+"""Example of using rules_gleam as an external dependency."""
+
+module(
+    name = "standalone_gleam_app",
+    version = "1.0.0",
+)
+
+bazel_dep(name = "muchq_rules_gleam", version = "0.0.0")
+local_path_override(
+    module_name = "muchq_rules_gleam",
+    path = "../..",
+)
+
+bazel_dep(name = "platforms", version = "0.0.10")
+
+# Configure Gleam toolchain
+gleam = use_extension("@muchq_rules_gleam//gleam:extensions.bzl", "gleam")
+gleam.toolchain(version = "1.12.0")
+use_repo(gleam, "gleam_toolchains", "local_config_erlang")
+
+# Register toolchains
+register_toolchains(
+    "@gleam_toolchains//:all",
+    "@local_config_erlang//:erlang_toolchain_definition",
+)

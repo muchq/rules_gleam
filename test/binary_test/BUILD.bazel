@@ -1,0 +1,34 @@
+load("//gleam/private:gleam_library_v2.bzl", "gleam_library_v2")
+load("//gleam/private:gleam_binary_v2.bzl", "gleam_binary_v2")
+
+# Library with all the application logic
+gleam_library_v2(
+    name = "app_lib",
+    srcs = [
+        "src/greet.gleam",
+        "src/main.gleam",
+    ],
+    package_name = "hello_app",
+    gleam_toml = "gleam.toml",
+)
+
+# Create a filegroup for the library sources
+filegroup(
+    name = "app_srcs",
+    srcs = [
+        "src/greet.gleam",
+        "src/main.gleam",
+        "gleam.toml",
+    ],
+)
+
+# Binary that packages the library
+gleam_binary_v2(
+    name = "hello_app",
+    srcs = [],  # No additional sources
+    srcs_deps = [":app_srcs"],  # Pass the source files
+    deps = [":app_lib"],  # Still reference the library for compatibility
+    package_name = "hello_app",
+    gleam_toml = "gleam.toml",
+    entry_module = "main",
+)
