@@ -6,17 +6,17 @@ module(
     compatibility_level = 1,
 )
 
-bazel_dep(name = "bazel_skylib", version = "1.7.1")
-bazel_dep(name = "package_metadata", version = "0.0.2")
-bazel_dep(name = "platforms", version = "0.0.9")
-bazel_dep(name = "gazelle", version = "0.35.0", repo_name = "bazel_gazelle")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+bazel_dep(name = "package_metadata", version = "0.0.7")
+bazel_dep(name = "platforms", version = "0.0.10")
+bazel_dep(name = "gazelle", version = "0.47.0", repo_name = "bazel_gazelle")
 
-bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.4.1", dev_dependency = True)
-bazel_dep(name = "aspect_bazel_lib", version = "1.32.1", dev_dependency = True)
-bazel_dep(name = "buildifier_prebuilt", version = "8.0.3", dev_dependency = True)
+bazel_dep(name = "bazel_skylib_gazelle_plugin", version = "1.9.0", dev_dependency = True)
+bazel_dep(name = "aspect_bazel_lib", version = "2.22.5", dev_dependency = True)
+bazel_dep(name = "buildifier_prebuilt", version = "8.2.1.2", dev_dependency = True)
 
 gleam = use_extension("//gleam:extensions.bzl", "gleam")
-gleam.toolchain(version = "1.10.0")
+gleam.toolchain(version = "1.14.0")
 use_repo(gleam, "gleam_toolchains", "local_config_erlang")
 
 register_toolchains("@gleam_toolchains//:all")
