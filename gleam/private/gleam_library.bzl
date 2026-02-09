@@ -95,7 +95,9 @@ def _gleam_library_impl(ctx):
     copy_command = 'cp -pR "{}/." "{}/"'.format(copy_source_path, copy_dest_path)
     command_parts.append(copy_command)
 
-    final_shell_command = " && ".join(command_parts)
+    # Set XDG_CACHE_HOME and XDG_DATA_HOME to local directories in the sandbox
+    # to avoid trying to write to the user's home directory.
+    final_shell_command = "export XDG_CACHE_HOME=$(pwd)/.cache && export XDG_DATA_HOME=$(pwd)/.local/share && " + " && ".join(command_parts)
 
     # Execute the shell command.
     ctx.actions.run_shell(

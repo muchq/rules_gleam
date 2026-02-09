@@ -65,7 +65,8 @@ def _gleam_binary_impl(ctx):
         ),
     )
 
-    command_str = " && ".join(command_script_parts)
+    # Set XDG_CACHE_HOME and XDG_DATA_HOME to local directories in the sandbox
+    command_str = "export XDG_CACHE_HOME=$(pwd)/.cache && export XDG_DATA_HOME=$(pwd)/.local/share && " + " && ".join(command_script_parts)
 
     ctx.actions.run_shell(
         command = command_str,

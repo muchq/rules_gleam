@@ -53,6 +53,10 @@ def _gleam_test_impl(ctx):
 
     script_content_parts = ["#!/bin/bash", "set -euo pipefail"]
 
+    # Set XDG_CACHE_HOME and XDG_DATA_HOME to local directories in the sandbox
+    script_content_parts.append("export XDG_CACHE_HOME=$(pwd)/.cache")
+    script_content_parts.append("export XDG_DATA_HOME=$(pwd)/.local/share")
+
     # Export ERL_LIBS if it's populated
     if "ERL_LIBS" in env_vars:
         # Ensure ERL_LIBS paths are quoted if they contain spaces (though unlikely for execpaths)

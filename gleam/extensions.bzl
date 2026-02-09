@@ -25,6 +25,25 @@ Overriding the default is only permitted in the root module.
     "version": attr.string(doc = "Explicit version of gleam.", mandatory = True),
 })
 
+def _parse_version(version):
+    """Parses a version string into a list of integers for comparison."""
+    parts = []
+    for part in version.split("."):
+        num = ""
+
+        # iterate directly over characters
+        for i in range(len(part)):
+            char = part[i]
+            if char.isdigit():
+                num += char
+            else:
+                break
+        if num:
+            parts.append(int(num))
+        else:
+            parts.append(0)
+    return parts
+
 def _toolchain_extension(module_ctx):
     registrations = {}
 
@@ -41,8 +60,8 @@ def _toolchain_extension(module_ctx):
             registrations[toolchain.name].append(toolchain.version)
     for name, versions in registrations.items():
         if len(versions) > 1:
-            # TODO: should be semver-aware, using MVS
-            selected = sorted(versions, reverse = True)[0]
+            # Select the highest version based on semver
+            selected = sorted(versions, key = _parse_version, reverse = True)[0]
 
             # buildifier: disable=print
             print("NOTE: gleam toolchain {} has multiple versions {}, selected {}".format(name, versions, selected))
