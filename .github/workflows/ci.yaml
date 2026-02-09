@@ -32,7 +32,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y erlang
       - name: Set up Bazel ${{ matrix.bazel-version }}
-        uses: bazel-contrib/setup-bazel@0.15.0
+        uses: bazel-contrib/setup-bazel@0.18.0
         with:
           version: ${{ matrix.bazel-version }}
       - name: Mount Bazel cache
