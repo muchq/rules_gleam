@@ -75,10 +75,13 @@ jobs:
     if: always() # Ensures this job runs even if matrix jobs fail
     steps:
       - name: Check workflow conclusion
-        uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3.0.3
-      - name: Report success
-        if: ${{ env.WORKFLOW_CONCLUSION == 'success' }}
-        run: echo "All tests passed successfully!" && exit 0
-      - name: Report failure
-        if: ${{ env.WORKFLOW_CONCLUSION != 'success' }} # Catches failure, cancelled, etc.
-        run: echo "Some tests failed or the workflow was cancelled." && exit 1
+        run: |
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "Test job failed, cancelled, or skipped: ${{ needs.test.result }}"
+            exit 1
+          fi
+          if [[ "${{ needs.pre-commit.result }}" != "success" ]]; then
+            echo "Pre-commit job failed, cancelled, or skipped: ${{ needs.pre-commit.result }}"
+            exit 1
+          fi
+          echo "All tests passed successfully!"
