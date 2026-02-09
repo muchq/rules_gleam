@@ -30,6 +30,7 @@ def _parse_version(version):
     parts = []
     for part in version.split("."):
         num = ""
+
         # iterate directly over characters
         for i in range(len(part)):
             char = part[i]
