@@ -4,9 +4,9 @@ load("@rules_gleam//gleam:defs.bzl", "gleam_binary", "gleam_library", "gleam_tes
 # Deps on gleam_stdlib come from the Hex packages declared in MODULE.bazel.
 gleam_library(
     name = "my_app_lib",
-    data = ["gleam.toml"],
     package_name = "my_app",
     srcs = glob(["src/**/*.gleam"]),
+    data = ["gleam.toml"],
     deps = ["@gleam_packages//:gleam_stdlib"],
 )
 
@@ -22,9 +22,9 @@ gleam_binary(
 # then runs via erl with gleeunit as entry point.
 gleam_test(
     name = "my_app_test",
-    data = ["gleam.toml"],
     package_name = "my_app",
     srcs = glob(["src/**/*.gleam"]),
+    data = ["gleam.toml"],
     test_srcs = glob(["test/**/*.gleam"]),
     deps = [
         "@gleam_packages//:gleam_stdlib",
