@@ -1,6 +1,10 @@
-"""Implementation of the gleam_test rule."""
+"""Implementation of the gleam_test rule.
 
-load("//gleam/private:gleam_library.bzl", "GleamLibraryProviderInfo")
+Uses `gleam compile-package --test` to compile both source and test files,
+then runs the tests via `erl` with gleeunit as the entry point.
+"""
+
+load("//gleam/private:gleam_library.bzl", "GleamPackageInfo")
 
 def _gleam_test_impl(ctx):
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
@@ -8,91 +12,115 @@ def _gleam_test_impl(ctx):
     underlying_gleam_tool = gleam_toolchain_info.underlying_gleam_tool
     erlang_toolchain = gleam_toolchain_info.erlang_toolchain
 
-    dep_output_dirs = []
-    dep_srcs = []  # Collect direct sources from deps for input depset
+    package_name = ctx.attr.package_name
+
+    # Declare compiled output directory.
+    compiled_dir = ctx.actions.declare_directory("_gleam_test_pkg/" + package_name)
+
+    # Collect dependency info.
+    dep_infos = []
+    transitive_dep_sets = []
     for dep in ctx.attr.deps:
-        if GleamLibraryProviderInfo in dep:
-            dep_info = dep[GleamLibraryProviderInfo]
-            dep_output_dirs.append(dep_info.output_pkg_build_dir)
-            dep_srcs.extend(dep_info.srcs)
+        if GleamPackageInfo in dep:
+            dep_info = dep[GleamPackageInfo]
+            dep_infos.append(dep_info)
+            transitive_dep_sets.append(dep_info.transitive_compiled_dirs)
 
-    all_input_items = list(ctx.files.srcs) + list(ctx.files.test_support_srcs) + dep_srcs
-    all_input_items.extend(dep_output_dirs)
-    if ctx.file.gleam_toml:
-        all_input_items.append(ctx.file.gleam_toml)
+    # All transitive dep dirs (flattened for inputs and -pa flags).
+    all_dep_dirs = depset(transitive = transitive_dep_sets)
 
-    # Add any explicit data dependencies for the test
+    # Prepare inputs.
+    input_files = list(ctx.files.srcs) + list(ctx.files.test_srcs)
     if ctx.files.data:
-        all_input_items.extend(ctx.files.data)
+        input_files.extend(ctx.files.data)
+    inputs_depset = depset(
+        direct = input_files,
+        transitive = [all_dep_dirs],
+    )
 
-    inputs_depset = depset(all_input_items)
+    # Determine src and test directories from file paths.
+    src_dir = _get_dir(ctx.files.srcs, "src")
+    test_dir = _get_dir(ctx.files.test_srcs, "test")
 
-    env_vars = {}
-    all_erl_libs_paths = []
-    if hasattr(erlang_toolchain, "erl_libs_path_str") and erlang_toolchain.erl_libs_path_str:
-        all_erl_libs_paths.append(erlang_toolchain.erl_libs_path_str)
-    for dep_dir in dep_output_dirs:
-        all_erl_libs_paths.append(dep_dir.path)
+    # Build the compile command.
+    cmd_parts = []
 
-    if all_erl_libs_paths:
-        env_vars["ERL_LIBS"] = ":".join(all_erl_libs_paths)
+    # Sandbox-safe XDG dirs.
+    cmd_parts.append("export XDG_CACHE_HOME=$(pwd)/.cache")
+    cmd_parts.append("export XDG_DATA_HOME=$(pwd)/.local/share")
 
-    test_runner_script_name = ctx.label.name + "_test_runner.sh"
-    test_runner_script = ctx.actions.declare_file(test_runner_script_name)
+    # Set up --lib directory with symlinks to dep outputs.
+    cmd_parts.append("mkdir -p _gleam_lib")
+    for dep_info in dep_infos:
+        cmd_parts.append('ln -s "$(pwd)/{compiled}" "_gleam_lib/{name}"'.format(
+            compiled = dep_info.compiled_dir.path,
+            name = dep_info.package_name,
+        ))
 
-    # Command to be executed by the test runner script.
-    # Calls the gleam_exe_wrapper, which expects the underlying_gleam_tool path as its first argument.
-    command_to_run_in_script_list = [
-        gleam_exe_wrapper.short_path,  # The wrapper script path (relative to runfiles root)
-        underlying_gleam_tool.short_path,  # Arg $1 to wrapper: actual gleam binary (relative to runfiles root)
-        "test",  # Arg $2 to wrapper (becomes $1 to gleam): the gleam command
-    ]
+    # Compile with --test flag to include test sources.
+    compile_cmd = '"{wrapper}" "{tool}" compile-package --name={name} --target=erlang --src="$(pwd)/{src}" --test="$(pwd)/{test}" --out="$(pwd)/{out}" --lib="$(pwd)/_gleam_lib"'.format(
+        wrapper = gleam_exe_wrapper.path,
+        tool = underlying_gleam_tool.path,
+        name = package_name,
+        src = src_dir,
+        test = test_dir,
+        out = compiled_dir.path,
+    )
+    cmd_parts.append(compile_cmd)
 
-    # Add any user-provided arguments for `gleam test`
-    command_to_run_in_script_list.extend(ctx.attr.args)
+    compile_command = " && ".join(cmd_parts)
 
-    script_content_parts = ["#!/bin/bash", "set -euo pipefail"]
+    ctx.actions.run_shell(
+        command = compile_command,
+        tools = depset([gleam_exe_wrapper, underlying_gleam_tool]),
+        inputs = inputs_depset,
+        outputs = [compiled_dir],
+        progress_message = "Compiling Gleam tests: " + package_name,
+        mnemonic = "GleamCompileTest",
+    )
 
-    # Set XDG_CACHE_HOME and XDG_DATA_HOME to local directories in the sandbox
-    script_content_parts.append("export XDG_CACHE_HOME=$(pwd)/.cache")
-    script_content_parts.append("export XDG_DATA_HOME=$(pwd)/.local/share")
+    # Create the test runner script that invokes erl.
+    test_runner_script = ctx.actions.declare_file(ctx.label.name + "_test_runner.sh")
 
-    # Export ERL_LIBS if it's populated
-    if "ERL_LIBS" in env_vars:
-        # Ensure ERL_LIBS paths are quoted if they contain spaces (though unlikely for execpaths)
-        # And ensure $TEST_SRCDIR is prepended to make them absolute within the test sandbox.
-        erl_libs_for_script = []
-        for lib_path in env_vars["ERL_LIBS"].split(":"):
-            # Paths from dep_dir.path are execpaths, should be relative to TEST_SRCDIR
-            # Paths from erlang_toolchain.erl_libs_path_str are absolute system paths, leave as is.
-            if lib_path.startswith(ctx.workspace_name + "/") or lib_path.startswith("external/") or not lib_path.startswith("/"):
-                erl_libs_for_script.append("$TEST_SRCDIR/" + lib_path)
-            else:
-                erl_libs_for_script.append(lib_path)
-        script_content_parts.append("export ERL_LIBS=\"{}\";".format(":".join(erl_libs_for_script).replace("\"", "\\\"")))
+    erl_path = "erl"
+    if hasattr(erlang_toolchain, "erl_path_str") and erlang_toolchain.erl_path_str:
+        erl_path = erlang_toolchain.erl_path_str
 
-    inner_command_execution = " ".join(["\"{}\"".format(arg) for arg in command_to_run_in_script_list])
+    # Build -pa flags for compiled test output + all dep ebin dirs.
+    # At test runtime, paths are relative to $TEST_SRCDIR/$WORKSPACE.
+    ws_name = ctx.workspace_name
+    compiled_runtime_path = "$TEST_SRCDIR/{ws}/{path}".format(
+        ws = ws_name,
+        path = compiled_dir.short_path,
+    )
 
-    # Change directory if gleam.toml is provided
-    if ctx.file.gleam_toml:
-        # The path to gleam.toml's directory within the test runfiles.
-        gleam_toml_dir_in_runfiles = "$TEST_SRCDIR/{}/{}".format(ctx.workspace_name, ctx.file.gleam_toml.dirname)
-        script_content_parts.append("(cd \"{}\" && exec {}) || exit 1".format(gleam_toml_dir_in_runfiles, inner_command_execution))
-    else:
-        script_content_parts.append("exec {}".format(inner_command_execution))
+    pa_parts = ['-pa "{}/ebin"'.format(compiled_runtime_path)]
+    for dep_dir in all_dep_dirs.to_list():
+        dep_runtime_path = "$TEST_SRCDIR/{ws}/{path}".format(
+            ws = ws_name,
+            path = dep_dir.short_path,
+        )
+        pa_parts.append('-pa "{}/ebin"'.format(dep_runtime_path))
 
-    script_content = "\n".join(script_content_parts)
+    pa_flags = " ".join(pa_parts)
 
     ctx.actions.write(
         output = test_runner_script,
         is_executable = True,
-        content = script_content,
+        content = """#!/bin/bash
+# Test runner for Gleam tests: {label}
+set -e
+
+exec "{erl_path}" {pa_flags} -noshell -s gleeunit main -s init stop
+""".format(
+            label = ctx.label.name,
+            erl_path = erl_path,
+            pa_flags = pa_flags,
+        ),
     )
 
-    # Runfiles needed for the test to execute.
-    # This includes all inputs to the gleam compilation (srcs, deps) and the gleam toolchain itself.
-    runfiles_files = inputs_depset.to_list() + [gleam_exe_wrapper, underlying_gleam_tool]
-    # If gleam.toml is used for CWD, ensure its directory contents are available if not already srcs.
+    # Runfiles: test runner needs the compiled test dir + all dep dirs.
+    runfiles_files = [compiled_dir] + all_dep_dirs.to_list()
 
     return [
         DefaultInfo(
@@ -101,43 +129,49 @@ def _gleam_test_impl(ctx):
         ),
     ]
 
-def _gleam_test_attrs():
-    return {
-        "srcs": attr.label_list(
-            doc = "Source .gleam files for the test (typically in 'test' directory).",
-            allow_files = [".gleam"],
-            mandatory = True,
-        ),
-        "test_support_srcs": attr.label_list(
-            doc = "Supporting source files for the test (e.g. main project sources needed for test compilation, usually from 'src').",
-            allow_files = [".gleam"],
-            default = [],
-        ),
-        "deps": attr.label_list(
-            doc = "Gleam library dependencies.",
-            providers = [GleamLibraryProviderInfo],
-            default = [],
-        ),
-        "package_name": attr.string(
-            doc = "The name of the Gleam package (used by `gleam test` if no gleam.toml).",
-            # Not strictly mandatory for `gleam test` if gleam.toml is present, but good for consistency.
-        ),
-        "gleam_toml": attr.label(
-            doc = "The gleam.toml file for this test package. If provided, its directory is used as CWD.",
-            allow_single_file = True,
-            default = None,
-        ),
-        "data": attr.label_list(
-            allow_files = True,
-            doc = "Runtime data dependencies for the test execution.",
-            default = [],
-        ),
-        # Standard test attributes (size, timeout, etc.) are implicitly added by `test = True`.
-    }
+def _get_dir(files, expected_component):
+    """Derive a directory path from files by looking for an expected path component."""
+    if not files:
+        fail("No files provided for '{}' directory.".format(expected_component))
+
+    first_file = files[0]
+    path = first_file.path
+    parts = path.split("/")
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i] == expected_component:
+            return "/".join(parts[:i + 1])
+
+    # Fallback: directory of the first file.
+    return first_file.dirname
 
 gleam_test = rule(
     implementation = _gleam_test_impl,
-    attrs = _gleam_test_attrs(),
+    attrs = {
+        "srcs": attr.label_list(
+            doc = "Source .gleam files (typically glob([\"src/**/*.gleam\"])).",
+            allow_files = [".gleam"],
+            mandatory = True,
+        ),
+        "test_srcs": attr.label_list(
+            doc = "Test .gleam files (typically glob([\"test/**/*.gleam\"])).",
+            allow_files = [".gleam"],
+            mandatory = True,
+        ),
+        "deps": attr.label_list(
+            doc = "Gleam package dependencies (including test deps like gleeunit).",
+            providers = [GleamPackageInfo],
+            default = [],
+        ),
+        "package_name": attr.string(
+            doc = "The name of the Gleam package under test.",
+            mandatory = True,
+        ),
+        "data": attr.label_list(
+            doc = "Runtime data dependencies.",
+            allow_files = True,
+            default = [],
+        ),
+    },
     toolchains = ["//gleam:toolchain_type"],
-    test = True,  # This marks the rule as a test rule.
+    test = True,
 )

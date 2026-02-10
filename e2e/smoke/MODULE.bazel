@@ -6,3 +6,26 @@ local_path_override(
 
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.0.0")
+
+gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
+gleam.toolchain(version = "1.14.0")
+
+gleam.hex_package(
+    name = "gleam_stdlib",
+    version = "0.60.0",
+    sha256 = "621d600bb134bc239cb2537630899817b1a42e60a1d46c5e9f3fae39f88c800b",
+    deps = [],
+)
+
+gleam.hex_package(
+    name = "gleeunit",
+    version = "1.0.2",
+    sha256 = "d364c87afeb26bdb4fb8a5abde67d635dc9fa52d6ab68416044c35b096c6882d",
+    deps = ["gleam_stdlib"],
+)
+
+use_repo(gleam, "gleam_packages", "gleam_toolchains", "local_config_erlang")
+
+register_toolchains("@gleam_toolchains//:all")
+
+register_toolchains("@local_config_erlang//:erlang_toolchain_definition")
