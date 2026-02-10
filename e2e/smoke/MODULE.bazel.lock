@@ -209,8 +209,8 @@
   "moduleExtensions": {
     "@@muchq_rules_gleam+//gleam:extensions.bzl%gleam": {
       "general": {
-        "bzlTransitiveDigest": "U7u3J9IAKpZWSDI1rnoI7TknILQ8fa/Zz+jUtCng0s0=",
-        "usagesDigest": "SHB/yZyAA0on0bUoHXJY6yNjec4EjQmNtWbgBr7Qe8I=",
+        "bzlTransitiveDigest": "clrtXLwPp2Nk/vpWEshZ+iONrrbRyF3NCSR+i+Hb3CM=",
+        "usagesDigest": "11jF6WSd0Qa5t/tnl1fgBNH10M/WSe+voJxUbdJlslc=",
         "recordedInputs": [
           "REPO_MAPPING:muchq_rules_gleam+,bazel_tools bazel_tools"
         ],

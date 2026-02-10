@@ -156,10 +156,10 @@ load("@muchq_rules_gleam//gleam:defs.bzl", "gleam_library")
 
 gleam_library(
     name = "{name}",
+    data = ["gleam.toml"],
     package_name = "{name}",
     srcs = glob(["src/**/*.gleam", "src/**/*.erl", "src/**/*.mjs"]),
     deps = [{deps}],
-    data = glob(["gleam.toml"]),
     visibility = ["//visibility:public"],
 )
 """.format(name = name, deps = deps_str)

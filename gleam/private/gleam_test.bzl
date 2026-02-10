@@ -40,7 +40,6 @@ def _gleam_test_impl(ctx):
 
     # Determine src and test directories from file paths.
     src_dir = _get_dir(ctx.files.srcs, "src")
-    test_dir = _get_dir(ctx.files.test_srcs, "test")
 
     # Build the compile command.
     cmd_parts = []
