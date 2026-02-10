@@ -14,6 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install erlang
-        run: sudo apt-get install -y erlang
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --fix-missing erlang
       - name: buildifier
         run: bazel run --enable_bzlmod //.github/workflows:buildifier.check
