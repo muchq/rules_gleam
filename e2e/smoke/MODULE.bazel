@@ -11,15 +11,15 @@ gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
 gleam.toolchain(version = "1.14.0")
 gleam.hex_package(
     name = "gleam_stdlib",
-    deps = [],
     sha256 = "621d600bb134bc239cb2537630899817b1a42e60a1d46c5e9f3fae39f88c800b",
     version = "0.60.0",
+    deps = [],
 )
 gleam.hex_package(
     name = "gleeunit",
-    deps = ["gleam_stdlib"],
     sha256 = "",
     version = "1.9.0",
+    deps = ["gleam_stdlib"],
 )
 use_repo(gleam, "gleam_packages", "gleam_toolchains", "local_config_erlang")
 
