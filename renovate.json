@@ -11,9 +11,7 @@
   ],
   "packageRules": [
     {
-      "matchFileNames": [
-        "MODULE.bazel"
-      ],
+      "matchFileNames": ["MODULE.bazel"],
       "enabled": false
     }
   ]
