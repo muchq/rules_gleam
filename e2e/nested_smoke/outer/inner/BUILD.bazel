@@ -1,0 +1,27 @@
+load("@rules_gleam//gleam:defs.bzl", "gleam_binary", "gleam_library", "gleam_test")
+
+gleam_library(
+    name = "nested_lib",
+    package_name = "nested",
+    srcs = glob(["src/**/*.gleam"]),
+    data = ["gleam.toml"],
+    deps = ["@gleam_packages//:gleam_stdlib"],
+)
+
+gleam_binary(
+    name = "nested_bin",
+    dep = ":nested_lib",
+    entry_module = "nested",
+)
+
+gleam_test(
+    name = "nested_test",
+    package_name = "nested",
+    srcs = glob(["src/**/*.gleam"]),
+    data = ["gleam.toml"],
+    test_srcs = glob(["test/**/*.gleam"]),
+    deps = [
+        "@gleam_packages//:gleam_stdlib",
+        "@gleam_packages//:gleeunit",
+    ],
+)

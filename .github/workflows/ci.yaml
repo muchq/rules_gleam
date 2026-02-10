@@ -63,6 +63,15 @@ jobs:
           else
             bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
           fi
+      - name: Run Bazel Tests - e2e/nested_smoke Directory
+        working-directory: e2e/nested_smoke
+        run: |
+          echo "Running tests in e2e/nested_smoke directory with bzlmod=${{ matrix.bzlmod-enabled }}"
+          if ${{ matrix.bzlmod-enabled }}; then
+            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
+          else
+            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
+          fi
   pre-commit:
     runs-on: ubuntu-latest
     steps:
