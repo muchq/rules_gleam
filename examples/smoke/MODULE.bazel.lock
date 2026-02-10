@@ -210,7 +210,7 @@
     "@@muchq_rules_gleam+//gleam:extensions.bzl%gleam": {
       "general": {
         "bzlTransitiveDigest": "clrtXLwPp2Nk/vpWEshZ+iONrrbRyF3NCSR+i+Hb3CM=",
-        "usagesDigest": "11jF6WSd0Qa5t/tnl1fgBNH10M/WSe+voJxUbdJlslc=",
+        "usagesDigest": "SN6iJqO+aeMB71FfoUD2khsq1L4xBBUg9D85wm/Jxlc=",
         "recordedInputs": [
           "REPO_MAPPING:muchq_rules_gleam+,bazel_tools bazel_tools"
         ],
