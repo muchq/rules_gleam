@@ -54,19 +54,19 @@ jobs:
       #       # This else branch will not be hit due to the 'if' condition on the step for bzlmod=false
       #       bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
       #     fi
-      - name: Run Bazel Tests - e2e/smoke Directory
-        working-directory: e2e/smoke
+      - name: Run Bazel Tests - examples/smoke Directory
+        working-directory: examples/smoke
         run: |
-          echo "Running tests in e2e/smoke directory with bzlmod=${{ matrix.bzlmod-enabled }}"
+          echo "Running tests in examples/smoke directory with bzlmod=${{ matrix.bzlmod-enabled }}"
           if ${{ matrix.bzlmod-enabled }}; then
             bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
           else
             bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
           fi
-      - name: Run Bazel Tests - e2e/nested_smoke Directory
-        working-directory: e2e/nested_smoke
+      - name: Run Bazel Tests - examples/nested_smoke Directory
+        working-directory: examples/nested_smoke
         run: |
-          echo "Running tests in e2e/nested_smoke directory with bzlmod=${{ matrix.bzlmod-enabled }}"
+          echo "Running tests in examples/nested_smoke directory with bzlmod=${{ matrix.bzlmod-enabled }}"
           if ${{ matrix.bzlmod-enabled }}; then
             bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
           else

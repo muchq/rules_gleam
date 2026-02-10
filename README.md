@@ -24,4 +24,4 @@ git_override(
 
 ## Usage
 
-See a basic example [here](e2e/smoke)
+See a basic example [here](examples/smoke)
