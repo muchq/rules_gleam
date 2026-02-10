@@ -74,6 +74,17 @@ jobs:
           else
             bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
           fi
+      - name: Run Bazel Build - examples/hello_world Directory
+        working-directory: examples/hello_world
+        run: |
+          echo "Building examples/hello_world directory with bzlmod=${{ matrix.bzlmod-enabled }}"
+          if ${{ matrix.bzlmod-enabled }}; then
+            bazel build --enable_bzlmod --noenable_workspace //...
+          else
+            bazel build --noenable_bzlmod --enable_workspace //...
+          fi
+          # Verify the binary is executable and runs
+          ./bazel-bin/hello_world
   pre-commit:
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,15 @@
+load("@rules_gleam//gleam:defs.bzl", "gleam_binary", "gleam_library")
+
+gleam_library(
+    name = "hello_world_lib",
+    package_name = "hello_world",
+    srcs = glob(["src/**/*.gleam"]),
+    data = ["gleam.toml"],
+    deps = ["@gleam_packages//:gleam_stdlib"],
+)
+
+gleam_binary(
+    name = "hello_world",
+    dep = ":hello_world_lib",
+    entry_module = "hello_world",
+)
