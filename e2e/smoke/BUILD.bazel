@@ -1,34 +1,33 @@
 load("@rules_gleam//gleam:defs.bzl", "gleam_binary", "gleam_library", "gleam_test")
 
-# This example assumes that `gleam.toml` is present in this directory.
-# The `package_name` attribute should match the name in gleam.toml.
-
+# Library: compiles my_app + main modules via gleam compile-package.
+# Deps on gleam_stdlib come from the Hex packages declared in MODULE.bazel.
 gleam_library(
     name = "my_app_lib",
-    package_name = "my_app",  # Matches name in gleam.toml
-    srcs = [
-        "src/my_app.gleam",
-    ],
-    gleam_toml = ":gleam.toml",
+    package_name = "my_app",
+    srcs = glob(["src/**/*.gleam"]),
+    data = ["gleam.toml"],
+    deps = ["@gleam_packages//:gleam_stdlib"],
 )
 
+# Binary: assembles pre-compiled BEAM files into a runnable release.
+# Does NOT recompile — just packages the library output.
 gleam_binary(
     name = "my_app_bin",
-    package_name = "my_app",
-    srcs = [
-        "src/main.gleam",
-    ],
-    gleam_toml = ":gleam.toml",
-    deps = [":my_app_lib"],
+    dep = ":my_app_lib",
+    entry_module = "main",
 )
 
+# Test: compiles test sources with gleam compile-package --test,
+# then runs via erl with gleeunit as entry point.
 gleam_test(
     name = "my_app_test",
     package_name = "my_app",
-    srcs = [
-        "src/my_app.gleam",
-        "test/my_app_test.gleam",
+    srcs = glob(["src/**/*.gleam"]),
+    data = ["gleam.toml"],
+    test_srcs = glob(["test/**/*.gleam"]),
+    deps = [
+        "@gleam_packages//:gleam_stdlib",
+        "@gleam_packages//:gleeunit",
     ],
-    gleam_toml = ":gleam.toml",
-    deps = [":my_app_lib"],
 )

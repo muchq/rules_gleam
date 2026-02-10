@@ -209,8 +209,8 @@
   "moduleExtensions": {
     "@@muchq_rules_gleam+//gleam:extensions.bzl%gleam": {
       "general": {
-        "bzlTransitiveDigest": "ddMzDARvZYFf/taolUeMtXBdJ3/k5flEqdURNP1aQeM=",
-        "usagesDigest": "uJo09+x1IuJ1el/WTJVYT+NpNfbz9SDH/ulZecXsnRA=",
+        "bzlTransitiveDigest": "clrtXLwPp2Nk/vpWEshZ+iONrrbRyF3NCSR+i+Hb3CM=",
+        "usagesDigest": "11jF6WSd0Qa5t/tnl1fgBNH10M/WSe+voJxUbdJlslc=",
         "recordedInputs": [
           "REPO_MAPPING:muchq_rules_gleam+,bazel_tools bazel_tools"
         ],
@@ -259,6 +259,12 @@
           "local_config_erlang": {
             "repoRuleId": "@@muchq_rules_gleam+//erlang/private:local_erlang_repository.bzl%local_erlang_repository",
             "attributes": {}
+          },
+          "gleam_packages": {
+            "repoRuleId": "@@muchq_rules_gleam+//gleam:extensions.bzl%_gleam_hex_packages_repo",
+            "attributes": {
+              "packages": "[{\"deps\":[],\"name\":\"gleam_stdlib\",\"sha256\":\"621d600bb134bc239cb2537630899817b1a42e60a1d46c5e9f3fae39f88c800b\",\"version\":\"0.60.0\"},{\"deps\":[\"gleam_stdlib\"],\"name\":\"gleeunit\",\"sha256\":\"\",\"version\":\"1.9.0\"}]"
+            }
           }
         }
       }

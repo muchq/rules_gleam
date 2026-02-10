@@ -36,6 +36,11 @@ bzl_library(
     name = "defs",
     srcs = ["defs.bzl"],
     visibility = ["//visibility:public"],
+    deps = [
+        "//gleam/private:gleam_binary",
+        "//gleam/private:gleam_library",
+        "//gleam/private:gleam_test",
+    ],
 )
 
 bzl_library(

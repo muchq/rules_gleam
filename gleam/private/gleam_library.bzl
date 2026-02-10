@@ -1,146 +1,139 @@
-"""Implementation of the gleam_library rule."""
+"""Implementation of the gleam_library rule.
 
-GleamLibraryProviderInfo = provider(
-    doc = "Provider for Gleam library information",
+Uses `gleam compile-package` to compile a single Gleam package at a time,
+taking pre-compiled dependencies via --lib. This aligns with Bazel's
+per-target caching model: each package compiles once and downstream
+targets consume compiled BEAM artifacts.
+"""
+
+GleamPackageInfo = provider(
+    doc = "Provider for compiled Gleam package information.",
     fields = {
-        "output_pkg_build_dir": "TreeArtifact for the package's output directory (build/erlang/lib/<package_name>).",
+        "compiled_dir": "TreeArtifact (named after the package) containing ebin/ with compiled BEAM files.",
         "package_name": "Name of the Gleam package.",
-        "srcs": "List of source files.",
-        # TODO: Consider adding transitive sources or other necessary info for consumers.
+        "transitive_compiled_dirs": "Depset of all transitive compiled TreeArtifacts (including this package's own).",
     },
 )
 
 def _gleam_library_impl(ctx):
-    # Retrieve the resolved Gleam toolchain (which includes Erlang info).
-    # The toolchain type is defined in //gleam/BUILD.bazel.
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
-
-    # This is the wrapper script that sets up PATH and calls the actual gleam binary.
     gleam_exe_wrapper = gleam_toolchain_info.gleam_executable
-
-    # This is the underlying actual gleam binary (e.g., from @gleam_toolchain_os_arch//:gleam_tool).
     underlying_gleam_tool = gleam_toolchain_info.underlying_gleam_tool
-
-    # This is the ErlangToolchainInfo (actually platform_common.ToolchainInfo with Erlang fields).
-    erlang_toolchain = gleam_toolchain_info.erlang_toolchain
 
     package_name = ctx.attr.package_name
 
-    # Declare the output directory for this library's compiled artifacts.
-    # This path structure is conventional for Gleam builds.
-    output_pkg_build_dir_path = "build/erlang/lib/" + package_name
-    output_pkg_build_dir = ctx.actions.declare_directory(output_pkg_build_dir_path)
+    # Declare a TreeArtifact named after the package so downstream rules
+    # can derive the package name from the directory basename.
+    compiled_dir = ctx.actions.declare_directory("_gleam_pkg/" + package_name)
 
-    # Collect output directories from direct Gleam library dependencies.
-    dep_output_dirs = []
+    # Collect dependency info.
+    dep_infos = []
+    transitive_dep_sets = []
     for dep in ctx.attr.deps:
-        if GleamLibraryProviderInfo in dep:
-            dep_output_dirs.append(dep[GleamLibraryProviderInfo].output_pkg_build_dir)
+        if GleamPackageInfo in dep:
+            dep_info = dep[GleamPackageInfo]
+            dep_infos.append(dep_info)
+            transitive_dep_sets.append(dep_info.transitive_compiled_dirs)
 
-    # Prepare inputs for the build action.
-    all_input_items = list(ctx.files.srcs)
-    all_input_items.extend(dep_output_dirs)
-    if ctx.file.gleam_toml:
-        all_input_items.append(ctx.file.gleam_toml)
+    # Build the transitive depset (includes this package's own output).
+    transitive_compiled_dirs = depset(
+        direct = [compiled_dir],
+        transitive = transitive_dep_sets,
+    )
+
+    # Prepare inputs: source files + all transitive compiled dirs.
+    input_files = list(ctx.files.srcs)
     if ctx.files.data:
-        all_input_items.extend(ctx.files.data)
-    inputs_depset = depset(all_input_items)
+        input_files.extend(ctx.files.data)
+    inputs_depset = depset(
+        direct = input_files,
+        transitive = transitive_dep_sets,
+    )
 
-    # Prepare environment variables, particularly ERL_LIBS.
-    env_vars = {}
-    all_erl_libs_paths = []
+    # Determine the source directory from source file paths.
+    src_dir = _get_src_dir(ctx)
 
-    # Add Erlang's own library paths if available from the toolchain.
-    if hasattr(erlang_toolchain, "erl_libs_path_str") and erlang_toolchain.erl_libs_path_str:
-        all_erl_libs_paths.append(erlang_toolchain.erl_libs_path_str)
+    # Build the shell command for gleam compile-package.
+    cmd_parts = []
 
-    # Add output paths of dependency libraries to ERL_LIBS.
-    # These are relative to the execroot, so they should work directly.
-    for dep_dir in dep_output_dirs:
-        all_erl_libs_paths.append(dep_dir.path)  # Use .path for TreeArtifacts in ERL_LIBS
+    # Sandbox-safe XDG dirs.
+    cmd_parts.append("export XDG_CACHE_HOME=$(pwd)/.cache")
+    cmd_parts.append("export XDG_DATA_HOME=$(pwd)/.local/share")
 
-    if all_erl_libs_paths:
-        env_vars["ERL_LIBS"] = ":".join(all_erl_libs_paths)
+    # Set up the --lib directory with symlinks to each dep's compiled output.
+    cmd_parts.append("mkdir -p _gleam_lib")
+    for dep_info in dep_infos:
+        cmd_parts.append('ln -s "$(pwd)/{compiled}" "_gleam_lib/{name}"'.format(
+            compiled = dep_info.compiled_dir.path,
+            name = dep_info.package_name,
+        ))
 
-    # Determine working directory for the `gleam build` command.
-    # If gleam.toml is provided, use its directory.
-    command_parts = []
-    working_dir_for_gleam_build = "."  # Default to execroot
-    if ctx.file.gleam_toml:
-        # Ensure dirname is not empty, which can happen if gleam.toml is at root.
-        toml_dir = ctx.file.gleam_toml.dirname
-        if toml_dir and toml_dir != ".":
-            working_dir_for_gleam_build = toml_dir
-            command_parts.append('cd "{}"'.format(working_dir_for_gleam_build))
+    # Run gleam compile-package.
+    compile_cmd = '"{wrapper}" "{tool}" compile-package --target=erlang --package="$(pwd)/{src}" --out="$(pwd)/{out}" --lib="$(pwd)/_gleam_lib"'.format(
+        wrapper = gleam_exe_wrapper.path,
+        tool = underlying_gleam_tool.path,
+        src = src_dir,
+        out = compiled_dir.path,
+    )
+    cmd_parts.append(compile_cmd)
 
-    # Construct the `gleam build` command using the wrapper and underlying tool.
-    # The wrapper script (gleam_exe_wrapper) expects the actual gleam binary path as its first argument.
-    gleam_build_cmd = '"{}" "{}" build'.format(gleam_exe_wrapper.path, underlying_gleam_tool.path)
-    command_parts.append(gleam_build_cmd)
+    final_command = " && ".join(cmd_parts)
 
-    # Define where `gleam build` places its output relative to its working directory.
-    # This is typically `build/dev/erlang/<package_name>` for the default 'dev' profile.
-    # If working_dir_for_gleam_build is ".", this path is relative to execroot.
-    # If cd'd into toml_dir, this path is relative to toml_dir.
-    gleam_internal_output_subdir = "build/dev/erlang/" + package_name
-
-    # Command to copy the build artifacts from Gleam's internal output location
-    # to the Bazel-declared output directory (output_pkg_build_dir).
-    # The `/.` after source dir ensures contents are copied, not the directory itself.
-    # output_pkg_build_dir.path is the absolute path in the sandbox for Bazel's declared output.
-    # The source path for cp needs to be relative to where the shell command is executing *after* any cd.
-    copy_source_path = gleam_internal_output_subdir  # This is now relative to the CWD of gleam build
-    copy_dest_path = output_pkg_build_dir.path  # This is an absolute sandbox path
-
-    copy_command = 'cp -pR "{}/." "{}/"'.format(copy_source_path, copy_dest_path)
-    command_parts.append(copy_command)
-
-    # Set XDG_CACHE_HOME and XDG_DATA_HOME to local directories in the sandbox
-    # to avoid trying to write to the user's home directory.
-    final_shell_command = "export XDG_CACHE_HOME=$(pwd)/.cache && export XDG_DATA_HOME=$(pwd)/.local/share && " + " && ".join(command_parts)
-
-    # Execute the shell command.
     ctx.actions.run_shell(
-        command = final_shell_command,
-        # Tools needed: the wrapper script and the actual gleam binary it calls.
+        command = final_command,
         tools = depset([gleam_exe_wrapper, underlying_gleam_tool]),
         inputs = inputs_depset,
-        outputs = [output_pkg_build_dir],
-        env = env_vars,
-        progress_message = "Building Gleam library: " + package_name,
-        mnemonic = "GleamBuildLib",
+        outputs = [compiled_dir],
+        progress_message = "Compiling Gleam package: " + package_name,
+        mnemonic = "GleamCompilePackage",
     )
 
     return [
-        DefaultInfo(files = depset([output_pkg_build_dir])),
-        GleamLibraryProviderInfo(
-            output_pkg_build_dir = output_pkg_build_dir,
+        DefaultInfo(files = depset([compiled_dir])),
+        GleamPackageInfo(
+            compiled_dir = compiled_dir,
             package_name = package_name,
-            srcs = ctx.files.srcs,  # Pass along the original sources
+            transitive_compiled_dirs = transitive_compiled_dirs,
         ),
     ]
+
+def _get_src_dir(ctx):
+    """Derive the source directory from the source files.
+
+    Looks for the 'src/' directory component in source file paths.
+    Falls back to the directory of the first source file.
+    """
+    if not ctx.files.srcs:
+        fail("No source files provided for gleam_library '{}'.".format(ctx.label.name))
+
+    first_src = ctx.files.srcs[0]
+    path = first_src.path
+
+    # Look for /src/ in the path and use everything up to it (the package root).
+    parts = path.split("/")
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i] == "src":
+            return "/".join(parts[:i])
+
+    # Fallback: directory of the first source file.
+    return first_src.dirname
 
 gleam_library = rule(
     implementation = _gleam_library_impl,
     attrs = {
         "srcs": attr.label_list(
-            doc = "Source .gleam files.",
-            allow_files = [".gleam"],
+            doc = "Source files (typically glob([\"src/**/*.gleam\", \"src/**/*.erl\", \"src/**/*.mjs\"])).",
+            allow_files = [".gleam", ".erl", ".mjs"],
             mandatory = True,
         ),
         "deps": attr.label_list(
-            doc = "Gleam library dependencies.",
-            providers = [GleamLibraryProviderInfo],
+            doc = "Gleam package dependencies (other gleam_library targets).",
+            providers = [GleamPackageInfo],
             default = [],
         ),
         "package_name": attr.string(
-            doc = "The name of the Gleam package (should match gleam.toml if provided).",
+            doc = "The name of the Gleam package.",
             mandatory = True,
-        ),
-        "gleam_toml": attr.label(
-            doc = "The gleam.toml file for this library package. If provided, its directory is used as CWD for gleam build.",
-            allow_single_file = True,
-            default = None,
         ),
         "data": attr.label_list(
             doc = "Data dependencies.",
@@ -148,5 +141,5 @@ gleam_library = rule(
             default = [],
         ),
     },
-    toolchains = ["//gleam:toolchain_type"],  # Updated toolchain label
+    toolchains = ["//gleam:toolchain_type"],
 )
