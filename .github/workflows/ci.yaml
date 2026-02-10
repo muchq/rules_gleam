@@ -29,8 +29,10 @@ jobs:
       - name: Set up Erlang
         run: |
           echo "Installing Erlang..."
+          # Update package lists to avoid 404 errors for outdated packages
           sudo apt-get update -y
-          sudo apt-get install -y erlang
+          # Install Erlang with --fix-missing to handle potential fetch errors
+          sudo apt-get install -y --fix-missing erlang
       - name: Set up Bazel ${{ matrix.bazel-version }}
         uses: bazel-contrib/setup-bazel@0.18.0
         with:
