@@ -50,8 +50,8 @@ def _gleam_binary_impl(ctx):
     args.add(dep_info.package_name)
     args.add(entry_module)
     args.add(entry_function)
-    args.add(shim_beam) # Add shim beam to inputs
-    args.add_all(all_compiled_dirs) # Add all compiled dirs
+    args.add(shim_beam)  # Add shim beam to inputs
+    args.add_all(all_compiled_dirs)  # Add all compiled dirs
 
     ctx.actions.run(
         executable = escript_path,
