@@ -1,8 +1,7 @@
 """Implementation of the gleam_binary rule.
 
-The binary rule does NO compilation. It assembles pre-compiled BEAM files
-from its library dependency (and all transitive deps) into a release
-structure, then generates a runner script.
+The binary rule assembles pre-compiled BEAM files from its library dependency
+(and all transitive deps) into a single-file executable (escript).
 """
 
 load("//gleam/private:gleam_library.bzl", "GleamPackageInfo")
@@ -19,96 +18,56 @@ def _gleam_binary_impl(ctx):
     # Collect all transitive compiled directories.
     all_compiled_dirs = dep_info.transitive_compiled_dirs.to_list()
 
-    # Declare the release directory as a TreeArtifact.
-    release_dir = ctx.actions.declare_directory(ctx.label.name + "_release")
+    # Compile the shim to a .beam file
+    shim_src = ctx.file._gleescript_shim
+    shim_beam = ctx.actions.declare_file("gleescript_main_shim.beam")
 
-    # Build the assembly command: copy each package's ebin/ into release/lib/<pkg>/ebin/.
-    cmd_parts = []
-    for compiled_dir in all_compiled_dirs:
-        # compiled_dir basename is the package name (by convention from gleam_library).
-        pkg_name = compiled_dir.basename
-        cmd_parts.append(
-            'mkdir -p "{release}/lib/{pkg}" && cp -pR "{src}/." "{release}/lib/{pkg}/"'.format(
-                release = release_dir.path,
-                pkg = pkg_name,
-                src = compiled_dir.path,
-            ),
-        )
+    erlc_path = erlang_toolchain.erlc_path_str
+    if not erlc_path:
+        erlc_path = "erlc"
 
-    if not cmd_parts:
-        fail("gleam_binary '{}' has no compiled packages to assemble.".format(ctx.label.name))
-
-    assembly_command = " && ".join(cmd_parts)
-
-    ctx.actions.run_shell(
-        command = assembly_command,
-        inputs = depset(all_compiled_dirs),
-        outputs = [release_dir],
-        progress_message = "Assembling Gleam binary: " + ctx.label.name,
-        mnemonic = "GleamAssembleBinary",
+    ctx.actions.run(
+        executable = erlc_path,
+        arguments = ["-o", shim_beam.dirname, shim_src.path],
+        inputs = [shim_src],
+        outputs = [shim_beam],
+        mnemonic = "CompileGleamShim",
+        progress_message = "Compiling Gleam binary shim",
+        use_default_shell_env = True,
     )
 
-    # Create the runner script.
-    runner_script = ctx.actions.declare_file(ctx.label.name + "_runner.sh")
+    # Run the builder to create the escript
+    builder_src = ctx.file._escript_builder
+    executable = ctx.actions.declare_file(ctx.label.name)
 
-    # Get the Erlang executable path from the toolchain.
-    erl_path = "erl"  # Default: assume on PATH.
-    if hasattr(erlang_toolchain, "erl_path_str") and erlang_toolchain.erl_path_str:
-        erl_path = erlang_toolchain.erl_path_str
+    escript_path = erlang_toolchain.escript_path_str
+    if not escript_path:
+        escript_path = "escript"
 
-    ctx.actions.write(
-        output = runner_script,
-        is_executable = True,
-        content = """#!/bin/bash
-# Runner script for Gleam binary: {label}
-set -e
+    # Arguments for the builder: OutFile, PackageName, EntryModule, EntryFunction, ShimBeam, Files...
+    args = ctx.actions.args()
+    args.add(executable)
+    args.add(dep_info.package_name)
+    args.add(entry_module)
+    args.add(entry_function)
+    args.add(shim_beam)  # Add shim beam to inputs
+    args.add_all(all_compiled_dirs)  # Add all compiled dirs
 
-# Determine RUNFILES_DIR.
-if [ -z "$RUNFILES_DIR" ]; then
-  RUNFILES_DIR_CANDIDATE="$0.runfiles"
-  if [ -d "$RUNFILES_DIR_CANDIDATE" ]; then
-    RUNFILES_DIR="$RUNFILES_DIR_CANDIDATE"
-  else
-    echo "ERROR: RUNFILES_DIR not set and $0.runfiles not found." >&2
-    exit 1
-  fi
-fi
-
-RELEASE_DIR="$RUNFILES_DIR/{ws_name}/{release_short_path}"
-
-if [ ! -d "$RELEASE_DIR" ]; then
-  echo "ERROR: Release directory not found at $RELEASE_DIR" >&2
-  exit 1
-fi
-
-# Build -pa flags for all package ebin directories.
-PA_FLAGS=""
-for ebin_dir in "$RELEASE_DIR"/lib/*/ebin; do
-  if [ -d "$ebin_dir" ]; then
-    PA_FLAGS="$PA_FLAGS -pa $ebin_dir"
-  fi
-done
-
-exec "{erl_path}" $PA_FLAGS -noshell -s {entry_module} {entry_function} -s init stop -- "$@"
-""".format(
-            label = ctx.label.name,
-            ws_name = ctx.workspace_name,
-            release_short_path = release_dir.short_path,
-            erl_path = erl_path,
-            entry_module = entry_module,
-            entry_function = entry_function,
-        ),
-    )
-
-    runfiles = ctx.runfiles(
-        files = [runner_script],
-        transitive_files = depset([release_dir]),
+    ctx.actions.run(
+        executable = escript_path,
+        arguments = [builder_src.path, args],
+        inputs = [builder_src, shim_beam] + all_compiled_dirs,
+        outputs = [executable],
+        mnemonic = "BuildGleamEscript",
+        progress_message = "Building Gleam escript: " + ctx.label.name,
+        use_default_shell_env = True,
     )
 
     return [
         DefaultInfo(
-            runfiles = runfiles,
-            executable = runner_script,
+            executable = executable,
+            files = depset([executable]),
+            runfiles = ctx.runfiles(files = [executable]),
         ),
     ]
 
@@ -127,6 +86,14 @@ gleam_binary = rule(
         "entry_function": attr.string(
             doc = "The function to call in the entry module.",
             default = "main",
+        ),
+        "_gleescript_shim": attr.label(
+            default = Label("//gleam/private:gleescript_main_shim.erl"),
+            allow_single_file = True,
+        ),
+        "_escript_builder": attr.label(
+            default = Label("//gleam/private:escript_builder.erl"),
+            allow_single_file = True,
         ),
     },
     toolchains = ["//gleam:toolchain_type"],

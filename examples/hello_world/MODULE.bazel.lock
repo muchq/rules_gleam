@@ -210,7 +210,7 @@
     "@@muchq_rules_gleam+//gleam:extensions.bzl%gleam": {
       "general": {
         "bzlTransitiveDigest": "clrtXLwPp2Nk/vpWEshZ+iONrrbRyF3NCSR+i+Hb3CM=",
-        "usagesDigest": "SN6iJqO+aeMB71FfoUD2khsq1L4xBBUg9D85wm/Jxlc=",
+        "usagesDigest": "QSH7KOi4BWr9V72A5ZAhmnXfQW8MSxM8us8XfKtGGSA=",
         "recordedInputs": [
           "REPO_MAPPING:muchq_rules_gleam+,bazel_tools bazel_tools"
         ],
@@ -263,7 +263,7 @@
           "gleam_packages": {
             "repoRuleId": "@@muchq_rules_gleam+//gleam:extensions.bzl%_gleam_hex_packages_repo",
             "attributes": {
-              "packages": "[{\"deps\":[],\"name\":\"gleam_stdlib\",\"sha256\":\"621d600bb134bc239cb2537630899817b1a42e60a1d46c5e9f3fae39f88c800b\",\"version\":\"0.60.0\"},{\"deps\":[\"gleam_stdlib\"],\"name\":\"gleeunit\",\"sha256\":\"\",\"version\":\"1.9.0\"}]"
+              "packages": "[{\"deps\":[],\"name\":\"gleam_stdlib\",\"sha256\":\"621d600bb134bc239cb2537630899817b1a42e60a1d46c5e9f3fae39f88c800b\",\"version\":\"0.60.0\"}]"
             }
           }
         }
