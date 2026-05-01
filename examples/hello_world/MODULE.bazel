@@ -5,7 +5,7 @@ local_path_override(
 )
 
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
-bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "platforms", version = "1.1.0")
 
 gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
 gleam.toolchain(version = "1.14.0")
