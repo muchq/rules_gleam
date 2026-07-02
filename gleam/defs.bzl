@@ -48,8 +48,9 @@ def gleam_package(
         data: runtime data dependencies of the package. Do not list `gleam.toml` here if you
             also pass `gleam_toml` below -- it is added automatically.
         package_name: the Gleam package name, as declared in `gleam.toml`. Defaults to `name`.
-        gleam_toml: optional label of the package's `gleam.toml`. It is added to the library's
-            `data` and used to validate that its `name` field matches `package_name`.
+        gleam_toml: optional label of the package's `gleam.toml`. It is added to the generated
+            targets' `data` (`gleam compile-package` reads it from the package directory) and
+            used to validate that its `name` field matches `package_name`.
         test_srcs: test source files (typically `glob(["test/**/*.gleam"])`). If omitted or
             empty, no test target is created.
         test_deps: additional dependencies used only by the tests (e.g. `gleeunit`), combined
@@ -101,6 +102,6 @@ def gleam_package(
             srcs = srcs,
             test_srcs = test_srcs,
             deps = deps + test_deps,
-            data = data + test_data,
+            data = lib_data + test_data,
             visibility = visibility,
         )
