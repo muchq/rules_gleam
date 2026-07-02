@@ -39,6 +39,7 @@ bzl_library(
     deps = [
         "//gleam/private:gleam_binary",
         "//gleam/private:gleam_library",
+        "//gleam/private:gleam_release",
         "//gleam/private:gleam_test",
         "//gleam/private:package_name_check",
     ],
