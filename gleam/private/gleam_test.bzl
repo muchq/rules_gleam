@@ -1,12 +1,22 @@
 """Implementation of the gleam_test rule.
 
 Uses `gleam compile-package --test` to compile both source and test files,
-then runs the tests via `erl` with gleeunit as the entry point.
+then runs the tests via `erl`, with a small shim that reuses gleeunit's own
+test-discovery logic (see gleam_eunit_runner.erl) while adding JUnit/XML
+output and `--test_filter` support that gleeunit's own zero-argument API
+doesn't expose.
 """
 
 load("//gleam/private:gleam_library.bzl", "GleamPackageInfo")
 
 def _gleam_test_impl(ctx):
+    if ctx.attr.shard_count > 1:
+        fail((
+            "gleam_test does not yet support shard_count > 1: each shard would " +
+            "redundantly run the whole suite rather than a partition of it. " +
+            "Remove the shard_count attribute from {}."
+        ).format(ctx.label))
+
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
     gleam_exe_wrapper = gleam_toolchain_info.gleam_executable
     underlying_gleam_tool = gleam_toolchain_info.underlying_gleam_tool
@@ -76,6 +86,24 @@ def _gleam_test_impl(ctx):
         mnemonic = "GleamCompileTest",
     )
 
+    # Compile the eunit runner shim to a .beam file.
+    runner_src = ctx.file._gleam_eunit_runner
+    runner_beam_dir = ctx.actions.declare_directory("_gleam_eunit_runner/" + ctx.label.name)
+
+    erlc_path = erlang_toolchain.erlc_path_str
+    if not erlc_path:
+        erlc_path = "erlc"
+
+    ctx.actions.run(
+        executable = erlc_path,
+        arguments = ["-o", runner_beam_dir.path, runner_src.path],
+        inputs = [runner_src],
+        outputs = [runner_beam_dir],
+        mnemonic = "CompileGleamEunitRunner",
+        progress_message = "Compiling Gleam eunit runner shim",
+        use_default_shell_env = True,
+    )
+
     # Create the test runner script that invokes erl.
     test_runner_script = ctx.actions.declare_file(ctx.label.name + "_test_runner.sh")
 
@@ -83,15 +111,22 @@ def _gleam_test_impl(ctx):
     if hasattr(erlang_toolchain, "erl_path_str") and erlang_toolchain.erl_path_str:
         erl_path = erlang_toolchain.erl_path_str
 
-    # Build -pa flags for compiled test output + all dep ebin dirs.
+    # Build -pa flags for compiled test output + all dep ebin dirs + the runner shim.
     # At test runtime, paths are relative to $TEST_SRCDIR/$WORKSPACE.
     ws_name = ctx.workspace_name
     compiled_runtime_path = "$TEST_SRCDIR/{ws}/{path}".format(
         ws = ws_name,
         path = compiled_dir.short_path,
     )
+    runner_beam_runtime_path = "$TEST_SRCDIR/{ws}/{path}".format(
+        ws = ws_name,
+        path = runner_beam_dir.short_path,
+    )
 
-    pa_parts = ['-pa "{}/ebin"'.format(compiled_runtime_path)]
+    pa_parts = [
+        '-pa "{}/ebin"'.format(compiled_runtime_path),
+        '-pa "{}"'.format(runner_beam_runtime_path),
+    ]
     for dep_dir in all_dep_dirs.to_list():
         dep_runtime_path = "$TEST_SRCDIR/{ws}/{path}".format(
             ws = ws_name,
@@ -101,40 +136,68 @@ def _gleam_test_impl(ctx):
 
     pa_flags = " ".join(pa_parts)
 
-    # gleeunit.main() discovers which compiled modules to run as tests by scanning a
+    # gleam_eunit_runner discovers which compiled modules to run as tests by scanning a
     # "test" directory *relative to the process's current working directory* at runtime
-    # (see gleeunit_ffi.erl's find_files/2) -- it does not accept an explicit module list.
+    # (it reuses gleeunit_ffi.erl's find_files/2, the same mechanism gleeunit:main/0 uses).
     # Bazel's test-setup.sh already chdirs into $TEST_SRCDIR/$TEST_WORKSPACE before running
     # this script, so for a package declared at the workspace root that's exactly where its
     # "test" directory's runfiles land. For a package nested under a subdirectory (e.g.
-    # "outer/inner"), we must additionally cd into that subdirectory ourselves, or gleeunit
-    # will silently find no "test" directory, discover zero test modules, and report success
-    # having run nothing at all.
-    cd_cmd = ""
+    # "outer/inner"), we must additionally cd into that subdirectory ourselves, or the runner
+    # will silently find no "test" directory and discover zero test modules.
+    script_lines = [
+        "#!/bin/bash",
+        "# Test runner for Gleam tests: " + ctx.label.name,
+        "",
+    ]
     if src_dir:
-        cd_cmd = 'cd "{}" && '.format(src_dir)
+        script_lines.append('cd "{}"'.format(src_dir))
+    script_lines.extend([
+        "",
+        # Bazel always sets XML_OUTPUT_FILE for `bazel test`; it's absent for `bazel run`.
+        # eunit_surefire (part of OTP's eunit application) writes one TEST-<module>.xml
+        # file per tested module into a directory, so it's pointed at a scratch dir and
+        # the resulting files are merged into the single file Bazel expects below.
+        'if [ -n "$XML_OUTPUT_FILE" ]; then',
+        '  export GLEAM_EUNIT_XML_DIR="${TEST_TMPDIR:-/tmp}/gleam_eunit_xml"',
+        '  mkdir -p "$GLEAM_EUNIT_XML_DIR"',
+        "fi",
+        # Bazel appends `args` (the attribute) and any --test_arg flags to this script's
+        # own argv; expose them to test code that wants them via an env var, since passing
+        # arbitrary strings through erl's `-s Mod Func Arg...` mechanism (which converts
+        # each word to an atom) is lossy for anything but simple keyword-like arguments.
+        'export GLEAM_TEST_ARGS="$*"',
+        "",
+        '"{erl}" {pa} -noshell -s gleam_eunit_runner main -s init stop'.format(
+            erl = erl_path,
+            pa = pa_flags,
+        ),
+        "EXIT_CODE=$?",
+        "",
+        'if [ -n "$XML_OUTPUT_FILE" ] && [ -d "$GLEAM_EUNIT_XML_DIR" ]; then',
+        "  {",
+        "    echo '<?xml version=\"1.0\" encoding=\"UTF-8\"?>'",
+        "    echo '<testsuites>'",
+        '    for f in "$GLEAM_EUNIT_XML_DIR"/TEST-*.xml; do',
+        '      [ -e "$f" ] && tail -n +2 "$f"',
+        "    done",
+        "    echo '</testsuites>'",
+        '  } > "$XML_OUTPUT_FILE"',
+        "fi",
+        "",
+        "exit $EXIT_CODE",
+    ])
 
     ctx.actions.write(
         output = test_runner_script,
         is_executable = True,
-        content = """#!/bin/bash
-# Test runner for Gleam tests: {label}
-set -e
-
-{cd_cmd}exec "{erl_path}" {pa_flags} -noshell -s gleeunit main -s init stop
-""".format(
-            label = ctx.label.name,
-            cd_cmd = cd_cmd,
-            erl_path = erl_path,
-            pa_flags = pa_flags,
-        ),
+        content = "\n".join(script_lines) + "\n",
     )
 
-    # Runfiles: test runner needs the compiled test dir, all dep dirs, the raw test_srcs
-    # (so gleeunit's runtime directory scan of "test/" actually finds something to run --
-    # see above), and any declared runtime data.
+    # Runfiles: test runner needs the compiled test dir, all dep dirs, the compiled eunit
+    # runner shim, the raw test_srcs (so the runtime scan of "test/" actually finds
+    # something to run -- see above), and any declared runtime data.
     runfiles_files = (
-        [compiled_dir] +
+        [compiled_dir, runner_beam_dir] +
         all_dep_dirs.to_list() +
         list(ctx.files.test_srcs) +
         list(ctx.files.data)
@@ -191,14 +254,27 @@ gleam_test = rule(
             allow_files = True,
             default = [],
         ),
+        "_gleam_eunit_runner": attr.label(
+            default = Label("//gleam/private:gleam_eunit_runner.erl"),
+            allow_single_file = True,
+        ),
     },
     toolchains = ["//gleam:toolchain_type"],
     test = True,
     doc = """\
 Compiles `srcs + test_srcs` together with `gleam compile-package --test`, then runs the
-resulting tests via `erl -s gleeunit main`.
+resulting tests via a small EUnit-based runner shim that reuses gleeunit's own test-module
+discovery.
 
-Note that `--test_filter`, test sharding, and JUnit/XML test result output are not yet wired
-up: `bazel test` runs the whole package's test suite as a single unit.
+- `bazel test --test_output=errors` and JUnit/XML test result output (read by many CI
+  systems) both work: a `TEST-XXX.xml` report is written per test module and merged into
+  the single file Bazel's `$XML_OUTPUT_FILE` expects.
+- `bazel test --test_filter=SUBSTRING` filters at test-*module* (i.e. test file) granularity,
+  not individual `_test` function granularity.
+- `args` (the attribute) and `--test_arg` are exposed to test code via the `GLEAM_TEST_ARGS`
+  environment variable (space-joined), not via argv, since Erlang's `-s Mod Func Arg...`
+  mechanism converts each word to an atom, which is lossy for arbitrary strings.
+- `shard_count > 1` is rejected at analysis time rather than silently running the whole
+  suite redundantly in every shard: sharding support is not implemented yet.
 """,
 )
