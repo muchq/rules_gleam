@@ -101,6 +101,19 @@ def _gleam_test_impl(ctx):
 
     pa_flags = " ".join(pa_parts)
 
+    # gleeunit.main() discovers which compiled modules to run as tests by scanning a
+    # "test" directory *relative to the process's current working directory* at runtime
+    # (see gleeunit_ffi.erl's find_files/2) -- it does not accept an explicit module list.
+    # Bazel's test-setup.sh already chdirs into $TEST_SRCDIR/$TEST_WORKSPACE before running
+    # this script, so for a package declared at the workspace root that's exactly where its
+    # "test" directory's runfiles land. For a package nested under a subdirectory (e.g.
+    # "outer/inner"), we must additionally cd into that subdirectory ourselves, or gleeunit
+    # will silently find no "test" directory, discover zero test modules, and report success
+    # having run nothing at all.
+    cd_cmd = ""
+    if src_dir:
+        cd_cmd = 'cd "{}" && '.format(src_dir)
+
     ctx.actions.write(
         output = test_runner_script,
         is_executable = True,
@@ -108,16 +121,24 @@ def _gleam_test_impl(ctx):
 # Test runner for Gleam tests: {label}
 set -e
 
-exec "{erl_path}" {pa_flags} -noshell -s gleeunit main -s init stop
+{cd_cmd}exec "{erl_path}" {pa_flags} -noshell -s gleeunit main -s init stop
 """.format(
             label = ctx.label.name,
+            cd_cmd = cd_cmd,
             erl_path = erl_path,
             pa_flags = pa_flags,
         ),
     )
 
-    # Runfiles: test runner needs the compiled test dir + all dep dirs.
-    runfiles_files = [compiled_dir] + all_dep_dirs.to_list()
+    # Runfiles: test runner needs the compiled test dir, all dep dirs, the raw test_srcs
+    # (so gleeunit's runtime directory scan of "test/" actually finds something to run --
+    # see above), and any declared runtime data.
+    runfiles_files = (
+        [compiled_dir] +
+        all_dep_dirs.to_list() +
+        list(ctx.files.test_srcs) +
+        list(ctx.files.data)
+    )
 
     return [
         DefaultInfo(
