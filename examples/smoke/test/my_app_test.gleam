@@ -8,5 +8,5 @@ pub fn main() {
 
 pub fn greeting_test() {
   my_app.greeting()
-  |> should.equal("THIS ASSERTION IS DELIBERATELY WRONG - CANARY FOR VERIFYING gleam_test ACTUALLY RUNS")
+  |> should.equal("Hello from my_app!")
 }
