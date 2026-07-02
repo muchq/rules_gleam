@@ -13,7 +13,7 @@ These rules are early-stage. In particular:
 - **Test coverage is currently limited to basic end-to-end examples** (see `examples/`) rather
   than a full unit test suite for the rule implementations themselves.
 - `gleam_binary` produces a self-contained `escript`, which still requires an Erlang runtime to
-  be present on the machine that *runs* the resulting executable (it is not a standalone native
+  be present on the machine that _runs_ the resulting executable (it is not a standalone native
   binary).
 
 Contributions and bug reports are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).

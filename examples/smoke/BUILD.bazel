@@ -9,9 +9,9 @@ load("@rules_gleam//gleam:defs.bzl", "gleam_package")
 gleam_package(
     name = "my_app",
     srcs = glob(["src/**/*.gleam"]),
-    gleam_toml = "gleam.toml",
-    deps = ["@gleam_packages//:gleam_stdlib"],
-    test_srcs = glob(["test/**/*.gleam"]),
-    test_deps = ["@gleam_packages//:gleeunit"],
     entry_module = "main",
+    gleam_toml = "gleam.toml",
+    test_deps = ["@gleam_packages//:gleeunit"],
+    test_srcs = glob(["test/**/*.gleam"]),
+    deps = ["@gleam_packages//:gleam_stdlib"],
 )

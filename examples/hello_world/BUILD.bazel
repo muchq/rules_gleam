@@ -6,7 +6,7 @@ load("@rules_gleam//gleam:defs.bzl", "gleam_package")
 gleam_package(
     name = "hello_world",
     srcs = glob(["src/**/*.gleam"]),
+    entry_module = "hello_world",
     gleam_toml = "gleam.toml",
     deps = ["@gleam_packages//:gleam_stdlib"],
-    entry_module = "hello_world",
 )
