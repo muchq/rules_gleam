@@ -1,23 +1,22 @@
 """Repository rule for detecting and configuring the local Erlang installation."""
 
-# Helper function to find an executable in common paths
 def _find_executable(repository_ctx, name):
-    common_paths = [
-        "/usr/local/bin",
-        "/opt/homebrew/bin",  # For Apple Silicon Homebrew
-        "/usr/bin",
-        "/bin",
-    ]
-    for p in common_paths:
-        path_str = p + "/" + name
-        test_result = repository_ctx.execute(["test", "-f", path_str, "-a", "-x", path_str])
-        if repository_ctx.path(path_str).exists and test_result.return_code == 0:
-            result = repository_ctx.execute(["readlink", "-f", path_str])
-            if result.return_code == 0:
-                return result.stdout.strip()
-            else:
-                return path_str
-    return None
+    """Finds an executable via the repository rule's PATH, resolving symlinks.
+
+    Uses repository_ctx.which(), which respects the PATH seen by Bazel (including
+    version managers like asdf/kerl/nix/mise that install shims outside the handful of
+    hardcoded system directories a naive search would check).
+    """
+    which_result = repository_ctx.which(name)
+    if which_result == None:
+        return None
+
+    # Resolve symlinks (e.g. asdf/kerl shims) so erl_bin_dir below points at the real
+    # Erlang installation directory, not a shim directory with no sibling lib/include dirs.
+    result = repository_ctx.execute(["readlink", "-f", str(which_result)])
+    if result.return_code == 0:
+        return result.stdout.strip()
+    return str(which_result)
 
 def _get_erlang_version(repository_ctx, erl_path):
     result = repository_ctx.execute([erl_path, "-eval", 'io:format("~s", [erlang:system_info(otp_release)]), halt().', "-noshell"])
@@ -32,9 +31,24 @@ def _local_erlang_repository_impl(repository_ctx):
     erlc_path = _find_executable(repository_ctx, "erlc")
 
     if not escript_path or not erl_path or not erlc_path:
-        fail("Could not find required Erlang executables (escript, erl, erlc) in common system paths. Please ensure Erlang is installed and available in PATH.")
+        fail(
+            "Could not find required Erlang executables (escript, erl, erlc) on PATH. " +
+            "These rules are not yet hermetic for the Erlang/OTP toolchain: please install " +
+            "Erlang/OTP and ensure `erl`, `erlc`, and `escript` are on PATH " +
+            "(e.g. via asdf, kerl, or your OS package manager).",
+        )
 
     erlang_version = _get_erlang_version(repository_ctx, erl_path)
+
+    pinned_version = repository_ctx.attr.erlang_version
+    if pinned_version and erlang_version != pinned_version:
+        msg = (
+            "Detected Erlang/OTP release '{detected}' (from {erl_path} on PATH), but the " +
+            "gleam.toolchain extension pinned erlang_version = \"{pinned}\". Install/select " +
+            "Erlang/OTP {pinned} (e.g. via asdf/kerl/your package manager), or update the " +
+            "erlang_version pin if {detected} is intentional."
+        )
+        fail(msg.format(detected = erlang_version, erl_path = erl_path, pinned = pinned_version))
 
     erl_dirname_result = repository_ctx.execute(["dirname", erl_path])
     if erl_dirname_result.return_code != 0:
@@ -123,5 +137,15 @@ toolchain(
 local_erlang_repository = repository_rule(
     implementation = _local_erlang_repository_impl,
     local = True,
+    attrs = {
+        "erlang_version": attr.string(
+            doc = "If set, fail with an actionable error unless the Erlang/OTP release " +
+                  "detected on PATH exactly matches this value (as reported by " +
+                  "erlang:system_info(otp_release), e.g. \"26\"). Does not make the toolchain " +
+                  "hermetic, but turns a silent cross-machine reproducibility gap into a loud, " +
+                  "actionable failure.",
+            default = "",
+        ),
+    },
     doc = "Detects local Erlang installation and configures a toolchain.",
 )

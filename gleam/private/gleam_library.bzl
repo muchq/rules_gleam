@@ -142,4 +142,12 @@ gleam_library = rule(
         ),
     },
     toolchains = ["//gleam:toolchain_type"],
+    doc = """\
+Compiles a single Gleam package with `gleam compile-package`.
+
+Each `gleam_library` corresponds to one Gleam package (one `gleam.toml`). Dependencies are
+other `gleam_library` targets, consumed as pre-compiled BEAM artifacts via `--lib` -- this
+package's own sources are not recompiled when a dependent package changes, matching Bazel's
+per-target caching model.
+""",
 )

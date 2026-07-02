@@ -26,12 +26,20 @@ Base name for generated repositories, allowing more than one gleam toolchain to 
 Overriding the default is only permitted in the root module.
 """, default = _DEFAULT_NAME),
     "version": attr.string(doc = "Explicit version of gleam.", mandatory = True),
+    "erlang_version": attr.string(doc = """\
+Optional exact Erlang/OTP release to require (e.g. "26"), checked against
+erlang:system_info(otp_release) on the host Erlang found on PATH. The Erlang toolchain is not
+yet hermetic (see erlang/private/local_erlang_repository.bzl), so this does not pin the actual
+bytes used to build -- it only turns a silent cross-machine reproducibility gap into a loud,
+actionable failure when the host's Erlang/OTP does not match what you expect. Leave unset to
+accept whatever Erlang/OTP release is found.
+""", default = ""),
 })
 
 hex_package = tag_class(attrs = {
     "name": attr.string(doc = "Hex package name (e.g. 'gleam_stdlib').", mandatory = True),
     "version": attr.string(doc = "Exact package version (e.g. '0.60.0').", mandatory = True),
-    "sha256": attr.string(doc = "SHA-256 checksum of the Hex tarball (outer_checksum from manifest.toml). Optional for development.", default = ""),
+    "sha256": attr.string(doc = "SHA-256 checksum of the Hex tarball (outer_checksum from manifest.toml, found after running `gleam deps download`). Required: an empty checksum means Bazel cannot verify the downloaded tarball hasn't been tampered with or changed upstream.", mandatory = True),
     "deps": attr.string_list(doc = "List of package names this package depends on.", default = []),
 })
 
@@ -57,6 +65,7 @@ def _parse_version(version):
 def _toolchain_extension(module_ctx):
     registrations = {}
     packages = []
+    erlang_versions = []
 
     # Collect toolchain registrations and hex packages from all modules.
     for mod in module_ctx.modules:
@@ -70,7 +79,18 @@ def _toolchain_extension(module_ctx):
                 registrations[toolchain.name] = []
             registrations[toolchain.name].append(toolchain.version)
 
+            if toolchain.erlang_version and toolchain.erlang_version not in erlang_versions:
+                erlang_versions.append(toolchain.erlang_version)
+
         for pkg in mod.tags.hex_package:
+            if not pkg.sha256:
+                msg = (
+                    "gleam.hex_package(name = \"{name}\") must set a non-empty sha256. " +
+                    "Find it as the \"checksum\" field at " +
+                    "https://hex.pm/api/packages/{name}/releases/{version}."
+                )
+                fail(msg.format(name = pkg.name, version = pkg.version))
+
             packages.append(struct(
                 name = pkg.name,
                 version = pkg.version,
@@ -95,7 +115,15 @@ def _toolchain_extension(module_ctx):
         )
 
     # Register local Erlang toolchain repository.
-    local_erlang_repository(name = "local_config_erlang")
+    if len(erlang_versions) > 1:
+        msg = (
+            "Conflicting erlang_version pins were declared across gleam.toolchain calls: {}. " +
+            "Only one Erlang/OTP release can be required at a time since all modules share a " +
+            "single detected Erlang toolchain."
+        )
+        fail(msg.format(erlang_versions))
+    pinned_erlang_version = erlang_versions[0] if erlang_versions else ""
+    local_erlang_repository(name = "local_config_erlang", erlang_version = pinned_erlang_version)
 
     # Register Hex packages repository if any packages were declared.
     if packages:
@@ -128,15 +156,12 @@ def _gleam_hex_packages_impl(repository_ctx):
         # contents.tar.gz, and CHECKSUM.
         url = "https://repo.hex.pm/tarballs/{}-{}.tar".format(name, version)
 
-        download_kwargs = {
-            "url": url,
-            "output": "_tmp_" + name,
-            "type": "tar",
-        }
-        if sha256:
-            download_kwargs["sha256"] = sha256
-
-        repository_ctx.download_and_extract(**download_kwargs)
+        repository_ctx.download_and_extract(
+            url = url,
+            output = "_tmp_" + name,
+            type = "tar",
+            sha256 = sha256,
+        )
 
         # Extract the inner contents.tar.gz which contains the actual source files.
         repository_ctx.extract(

@@ -1,7 +1,7 @@
 {
-  "homepage": "https://github.com/myorg/rules_mylang",
+  "homepage": "https://github.com/muchq/rules_gleam",
   "maintainers": [],
-  "repository": ["github:myorg/rules_mylang"],
+  "repository": ["github:muchq/rules_gleam"],
   "versions": [],
   "yanked_versions": {}
 }
