@@ -65,6 +65,15 @@ jobs:
           else
             bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
           fi
+      - name: TEMP DIAGNOSTIC - inspect XML output and test_filter (not for merging)
+        working-directory: examples/smoke
+        run: |
+          echo "=== test.xml content ==="
+          cat bazel-testlogs/my_app_test/test.xml || echo "NO XML FOUND"
+          echo "=== filter matching the real module (expect the real test to run and pass) ==="
+          bazel test --enable_bzlmod --noenable_workspace --test_output=all --test_filter=my_app_test --cache_test_results=no //:my_app_test
+          echo "=== filter matching nothing (expect the real test to be excluded) ==="
+          bazel test --enable_bzlmod --noenable_workspace --test_output=all --test_filter=zzz_no_such_module --cache_test_results=no //:my_app_test
       - name: Run Bazel Tests - examples/nested_smoke Directory
         working-directory: examples/nested_smoke
         run: |
