@@ -8,5 +8,5 @@ pub fn main() {
 
 pub fn greeting_test() {
   my_app.greeting()
-  |> should.equal("CANARY - VERIFYING NEW gleam_eunit_runner SHIM CATCHES REAL FAILURES")
+  |> should.equal("Hello from my_app!")
 }
