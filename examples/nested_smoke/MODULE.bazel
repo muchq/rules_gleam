@@ -17,7 +17,7 @@ gleam.hex_package(
 )
 gleam.hex_package(
     name = "gleeunit",
-    sha256 = "",
+    sha256 = "da9553ce58b67924b3c631f96fe3370c49eb6d6dc6b384ec4862cc4aaa718f3c",
     version = "1.9.0",
     deps = ["gleam_stdlib"],
 )
