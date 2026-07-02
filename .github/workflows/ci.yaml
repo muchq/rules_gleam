@@ -65,6 +65,17 @@ jobs:
           else
             bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
           fi
+      - name: TEMP DIAGNOSTIC - gleam_release verification
+        working-directory: examples/smoke
+        run: |
+          echo "=== bazel build //:my_app_release ==="
+          bazel build --enable_bzlmod --noenable_workspace //:my_app_release
+          echo "=== direct invocation (exercises \$0.runfiles fallback) ==="
+          ./bazel-bin/my_app_release
+          echo "=== bazel run (exercises RUNFILES_DIR) ==="
+          bazel run --enable_bzlmod --noenable_workspace //:my_app_release
+          echo "=== gleam.toml present in runfiles? (proves transitive_data flows through) ==="
+          find bazel-bin/my_app_release.runfiles -name "gleam.toml" || echo "NOT FOUND"
       - name: Run Bazel Tests - examples/nested_smoke Directory
         working-directory: examples/nested_smoke
         run: |
