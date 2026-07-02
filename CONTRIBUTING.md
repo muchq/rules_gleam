@@ -25,22 +25,32 @@ Some targets are generated from sources.
 Currently this is just the `bzl_library` targets.
 Run `bazel run //:gazelle` to keep them up-to-date.
 
+## Updating generated docs
+
+`docs/rules.md` is generated from the docstrings in `gleam/defs.bzl` and the rule
+implementations it re-exports. After changing a rule's `doc` strings or the public API surface,
+run `bazel run //docs:update` to regenerate it, and `bazel test //docs:rules_test` to confirm
+it's up to date (this also runs as part of `bazel test //...`).
+
 ## Using this as a development dependency of other rules
 
-You'll commonly find that you develop in another WORKSPACE, such as
-some other ruleset that depends on rules_mylang, or in a nested
-WORKSPACE in the integration_tests folder.
+You'll commonly find that you develop in another workspace, such as
+some other project that depends on rules_gleam, or in one of the
+example workspaces under `examples/`.
 
 To always tell Bazel to use this directory rather than some release
 artifact or a version fetched from the internet, run this from this
 directory:
 
 ```sh
-OVERRIDE="--override_repository=rules_mylang=$(pwd)/rules_mylang"
+OVERRIDE="--override_repository=muchq_rules_gleam=$(pwd)"
 echo "common $OVERRIDE" >> ~/.bazelrc
 ```
 
-This means that any usage of `@rules_mylang` on your system will point to this folder.
+This means that any usage of `@muchq_rules_gleam` on your system will point to this folder.
+Each example under `examples/` also sets this up directly via `local_path_override`
+(bzlmod) or `local_repository` (WORKSPACE) so it always builds against the checked-out
+source.
 
 ## Releasing
 
@@ -51,7 +61,7 @@ If you do nothing, eventually the newest commits will be released automatically 
 This automation is defined in .github/workflows/tag.yaml.
 
 Rather than wait for the cron event, you can trigger manually. Navigate to
-https://github.com/myorg/rules_mylang/actions/workflows/tag.yaml
+https://github.com/muchq/rules_gleam/actions/workflows/tag.yaml
 and press the "Run workflow" button.
 
 If you need control over the next release version, for example when making a release candidate for a new major,
