@@ -98,4 +98,12 @@ gleam_binary = rule(
     },
     toolchains = ["//gleam:toolchain_type"],
     executable = True,
+    doc = """\
+Packages a `gleam_library` and its transitive deps into a single-file, self-contained escript
+executable.
+
+The resulting executable still requires an Erlang/OTP runtime to be present on the machine
+that runs it (it is not a standalone native binary) -- it bundles compiled BEAM files, not an
+Erlang runtime.
+""",
 )

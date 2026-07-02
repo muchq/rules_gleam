@@ -42,3 +42,9 @@ bzl_library(
     srcs = ["resolved_toolchain.bzl"],
     visibility = ["//gleam:__subpackages__"],
 )
+
+bzl_library(
+    name = "package_name_check",
+    srcs = ["package_name_check.bzl"],
+    visibility = ["//gleam:__subpackages__"],
+)

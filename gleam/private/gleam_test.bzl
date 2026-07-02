@@ -173,4 +173,11 @@ gleam_test = rule(
     },
     toolchains = ["//gleam:toolchain_type"],
     test = True,
+    doc = """\
+Compiles `srcs + test_srcs` together with `gleam compile-package --test`, then runs the
+resulting tests via `erl -s gleeunit main`.
+
+Note that `--test_filter`, test sharding, and JUnit/XML test result output are not yet wired
+up: `bazel test` runs the whole package's test suite as a single unit.
+""",
 )
