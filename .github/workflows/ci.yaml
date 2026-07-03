@@ -15,13 +15,12 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 jobs:
   test:
-    name: Test (Bazel ${{ matrix.bazel-version }}, OS ${{ matrix.os }})
+    name: Test (OS ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        bazel-version: ["9.x"] # bzlmod is the only supported dependency mode; see .bazelrc
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -35,19 +34,23 @@ jobs:
           sudo apt-get update -y
           # Install Erlang with --fix-missing to handle potential fetch errors
           sudo apt-get install -y --fix-missing erlang
-      - name: Set up Bazel ${{ matrix.bazel-version }}
+      - name: Set up Bazel
         uses: bazel-contrib/setup-bazel@0.18.0
-        with:
-          version: ${{ matrix.bazel-version }}
+        # No version-related input: this action's valid inputs are bazelisk-version (which
+        # Bazel version *fetching tool* to install, not which Bazel itself) plus cache/output
+        # knobs -- it has no "version" input despite a previous revision of this file passing
+        # one (silently ignored with an "Unexpected input(s)" warning every run). The actual
+        # Bazel version is resolved by Bazelisk from .bazelversion at the repo root, same as
+        # any local `bazel` invocation.
       - name: Mount Bazel cache
         uses: actions/cache@v5
         with:
           path: |
             ~/.cache/bazel
             ~/.cache/bazel-repo
-          key: bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-${{ hashFiles('**/MODULE.bazel') }}
+          key: bazel-cache-${{ matrix.os }}-${{ hashFiles('.bazelversion', '**/MODULE.bazel') }}
           restore-keys: |
-            bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-
+            bazel-cache-${{ matrix.os }}-
       - name: Run Bazel Unit Tests - test/unit (Starlark analysistest/unittest)
         run: |
           echo "Running Starlark unit tests for private rule/module-extension helpers"
