@@ -1,0 +1,7 @@
+load("@rules_gleam//gleam:defs.bzl", "gleam_package")
+
+gleam_package(
+    name = "sample_package",
+    srcs = glob(["src/**/*.gleam"]),
+    gleam_toml = "gleam.toml",
+)

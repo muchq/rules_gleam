@@ -18,8 +18,10 @@ go_test(
     name = "gleam_gazelle_test",
     srcs = [
         "gleam_toml_test.go",
+        "golden_test.go",
         "lang_test.go",
     ],
+    data = glob(["testdata/golden/**"]),
     embed = [":gleam_gazelle"],
     deps = [
         "@bazel_gazelle//language",

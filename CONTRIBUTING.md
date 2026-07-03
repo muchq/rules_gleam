@@ -26,6 +26,11 @@ and `gleam_package` targets for any directory containing a `gleam.toml` + `src/*
 (from `gleam_gazelle`, this repo's own Gazelle language extension).
 Run `bazel run //:gazelle` to keep them up-to-date.
 
+`gleam_gazelle`'s own generated output is covered by golden-file tests: each directory under
+`gleam_gazelle/testdata/golden/` is a fixture (a `gleam.toml` + sources) paired with a checked-in
+`BUILD.want` file. After an intentional change to the generated output, regenerate them with
+`go test ./gleam_gazelle/... -run TestGolden -update` and review the diff.
+
 ## Updating generated docs
 
 `docs/rules.md` is generated from the docstrings in `gleam/defs.bzl` and the rule

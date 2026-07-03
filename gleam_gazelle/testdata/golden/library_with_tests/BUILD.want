@@ -1,0 +1,8 @@
+gleam_package(
+    name = "my_lib",
+    srcs = glob(["src/**/*.gleam"]),
+    gleam_toml = "gleam.toml",
+    test_deps = ["@gleam_packages//:gleeunit"],
+    test_srcs = glob(["test/**/*.gleam"]),
+    deps = ["@gleam_packages//:gleam_stdlib"],
+)
