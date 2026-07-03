@@ -1,5 +1,8 @@
 # How to Contribute
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the repo is laid out and how its test suite is
+organized before diving in.
+
 ## Using devcontainers
 
 If you are using [devcontainers](https://code.visualstudio.com/docs/devcontainers/containers)

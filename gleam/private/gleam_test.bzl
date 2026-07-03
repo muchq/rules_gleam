@@ -82,6 +82,10 @@ def _gleam_test_impl(ctx):
         tools = depset([gleam_exe_wrapper, underlying_gleam_tool]),
         inputs = inputs_depset,
         outputs = [compiled_dir],
+        # See gleam_library.bzl's identical env setting for why: erlc (invoked internally by
+        # `gleam compile-package`) otherwise embeds Bazel's per-action sandbox path into the
+        # compiled output.
+        env = {"ERL_COMPILER_OPTIONS": "[deterministic]"},
         progress_message = "Compiling Gleam tests: " + package_name,
         mnemonic = "GleamCompileTest",
     )
@@ -96,7 +100,8 @@ def _gleam_test_impl(ctx):
 
     ctx.actions.run(
         executable = erlc_path,
-        arguments = ["-o", runner_beam_dir.path, runner_src.path],
+        # See gleam_binary.bzl's identical +deterministic flag for why.
+        arguments = ["+deterministic", "-o", runner_beam_dir.path, runner_src.path],
         inputs = [runner_src],
         outputs = [runner_beam_dir],
         mnemonic = "CompileGleamEunitRunner",

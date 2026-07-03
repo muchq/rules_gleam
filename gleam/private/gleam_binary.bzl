@@ -28,7 +28,11 @@ def _gleam_binary_impl(ctx):
 
     ctx.actions.run(
         executable = erlc_path,
-        arguments = ["-o", shim_beam.dirname, shim_src.path],
+        # +deterministic stops erlc from embedding the compiling machine's absolute source path
+        # into the shim's .beam (debug/line-number metadata) -- without it, Bazel's per-action
+        # sandbox path (which differs between separate builds of the same target) would leak
+        # into the compiled output and make gleam_binary's result non-reproducible.
+        arguments = ["+deterministic", "-o", shim_beam.dirname, shim_src.path],
         inputs = [shim_src],
         outputs = [shim_beam],
         mnemonic = "CompileGleamShim",

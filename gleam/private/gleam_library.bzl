@@ -93,6 +93,14 @@ def _gleam_library_impl(ctx):
         tools = depset([gleam_exe_wrapper, underlying_gleam_tool]),
         inputs = inputs_depset,
         outputs = [compiled_dir],
+        # `gleam compile-package` shells out to erlc internally; erlc (like any caller of the
+        # `compile` module) reads ERL_COMPILER_OPTIONS and applies it to every compilation.
+        # `deterministic` stops it from embedding the compiling machine's absolute source path
+        # into each .beam file's debug/line-number metadata -- without it, Bazel's per-action
+        # sandbox path (which differs between separate builds of the same target) would leak
+        # into the compiled output and make it non-reproducible for reasons that have nothing
+        # to do with the actual source.
+        env = {"ERL_COMPILER_OPTIONS": "[deterministic]"},
         progress_message = "Compiling Gleam package: " + package_name,
         mnemonic = "GleamCompilePackage",
     )

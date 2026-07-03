@@ -66,6 +66,15 @@ jobs:
         run: |
           echo "Running the gleam Gazelle language extension's Go unit tests"
           bazel test --test_output=errors //gleam_gazelle/...
+      - name: Verify @gleam_host//:gleam is directly runnable
+        run: |
+          # gleam_host_repo (gleam/private/host_repo.bzl) detects the host platform without
+          # needing to know its OS/arch string; prove the resulting binary is real and matches
+          # the pinned toolchain version, not just that the target resolves.
+          echo "Running bazel run @gleam_host//:gleam -- --version"
+          output="$(bazel run @gleam_host//:gleam -- --version)"
+          echo "$output"
+          echo "$output" | grep -q "gleam 1.17.0"
       - name: Verify gazelle generates a BUILD file for a fresh Gleam package
         run: |
           echo "Running bazel run //:gazelle against gleam_gazelle/testdata/sample_package (no BUILD.bazel checked in)"
@@ -91,6 +100,27 @@ jobs:
         run: |
           echo "Running tests in examples/smoke directory"
           bazel test --test_output=errors //...
+      - name: Verify examples/smoke's //:my_app build is deterministic
+        working-directory: examples/smoke
+        run: |
+          # `bazel clean` (not --expunge) drops the output tree so the actions genuinely
+          # re-execute, while keeping already-fetched external repos (Erlang/OTP, the gleam
+          # toolchain, Hex packages) so this doesn't re-download anything. Two builds of the
+          # same target producing byte-different escripts would mean gleam_binary embeds
+          # something nondeterministic (a timestamp, a build-machine path, map/set iteration
+          # order, ...), which would silently break remote caching and bit-for-bit reproducible
+          # builds for every downstream user, not just this example.
+          bazel build //:my_app
+          cp -L bazel-bin/my_app /tmp/my_app_build_1
+          bazel clean
+          bazel build //:my_app
+          cp -L bazel-bin/my_app /tmp/my_app_build_2
+          if ! cmp -s /tmp/my_app_build_1 /tmp/my_app_build_2; then
+            echo "FAIL: two independent builds of //:my_app produced different output bytes" >&2
+            cmp /tmp/my_app_build_1 /tmp/my_app_build_2 || true
+            exit 1
+          fi
+          echo "PASS: //:my_app build is deterministic byte-for-byte across a clean rebuild"
       - name: Run Bazel Tests - examples/nested_smoke Directory
         working-directory: examples/nested_smoke
         run: |
