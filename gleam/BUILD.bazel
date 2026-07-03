@@ -50,7 +50,10 @@ bzl_library(
     name = "extensions",
     srcs = ["extensions.bzl"],
     visibility = ["//visibility:public"],
-    deps = [":repositories"],
+    deps = [
+        ":repositories",
+        "//gleam/private:manifest_toml",
+    ],
 )
 
 bzl_library(
