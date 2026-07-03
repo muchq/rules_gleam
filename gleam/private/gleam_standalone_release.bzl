@@ -1,9 +1,11 @@
 """Implementation of the gleam_standalone_release rule.
 
 Packages a gleam_library and its transitive deps as a fully self-contained runfiles-tree
-binary that bundles the Erlang/OTP runtime itself -- unlike gleam_binary (escript) and
-gleam_release (both of which still shell out to a system Erlang), the machine that *runs*
-the result does not need any Erlang installed at all.
+binary that bundles the Erlang/OTP runtime itself -- the machine that *runs* the result does
+not need any Erlang installed at all. gleam_release does this too under the hermetic
+toolchain, but silently falls back to a PATH lookup under gleam.local_erlang_toolchain();
+this rule instead fails outright unless the hermetic toolchain is active, for callers who
+want that guaranteed rather than best-effort.
 
 Requires the hermetic Erlang toolchain, which is on by default: only that toolchain exposes a
 Bazel-visible, bundleable OTP tree (see erlang/private/hermetic_erlang_repository.bzl's
@@ -13,17 +15,8 @@ arbitrary host Erlang install's files is not reliably relocatable, since many sy
 managers bake absolute paths into generated scripts.
 """
 
+load(":erlang_otp_tree.bzl", "find_erl_file")
 load(":gleam_library.bzl", "GleamPackageInfo")
-
-def _find_erl_file(otp_tree_files, label):
-    for f in otp_tree_files:
-        if f.short_path.endswith("otp/bin/erl"):
-            return f
-    fail((
-        "gleam_standalone_release '{label}': could not find 'otp/bin/erl' in the hermetic " +
-        "Erlang toolchain's otp_tree filegroup. This is an internal error in the hermetic " +
-        "toolchain (erlang/private/hermetic_erlang_repository.bzl) -- please file an issue."
-    ).format(label = label))
 
 def _gleam_standalone_release_impl(ctx):
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
@@ -40,7 +33,7 @@ def _gleam_standalone_release_impl(ctx):
         ).format(label = ctx.label))
 
     otp_tree_files = otp_tree[DefaultInfo].files.to_list()
-    erl_file = _find_erl_file(otp_tree_files, ctx.label)
+    erl_file = find_erl_file(otp_tree_files, ctx.label)
 
     dep_info = ctx.attr.dep[GleamPackageInfo]
     entry_module = ctx.attr.entry_module
@@ -126,14 +119,16 @@ gleam_standalone_release = rule(
     doc = """\
 Packages a `gleam_library` and its transitive deps as a fully self-contained binary that
 bundles the Erlang/OTP runtime itself: the machine that *runs* the result does not need any
-Erlang installed at all, unlike `gleam_binary` (escript) or `gleam_release`, both of which
-still shell out to a system Erlang.
+Erlang installed at all, unlike `gleam_binary` (escript), which always shells out to a system
+Erlang via a PATH lookup.
 
-Requires the hermetic Erlang toolchain, which is on by default -- fails with an actionable
-error if `gleam.local_erlang_toolchain()` has opted back out to PATH-based discovery. This is
-the recommended, easiest-to-get-right way to ship a portable Gleam CLI tool: build once, copy
-the resulting runfiles tree to any machine with the same OS/CPU architecture, and run it with
-no setup required.
+`gleam_release` also bundles the runtime under the hermetic toolchain, but silently falls
+back to a PATH lookup under `gleam.local_erlang_toolchain()`. This rule instead requires the
+hermetic Erlang toolchain (on by default) and fails with an actionable error if
+`gleam.local_erlang_toolchain()` has opted back out to PATH-based discovery -- use this when
+you want that guarantee enforced rather than best-effort. Build once, copy the resulting
+runfiles tree to any machine with the same OS/CPU architecture, and run it with no setup
+required.
 
 Like `gleam_release`, this does not attempt to start the package as an OTP application (no
 `application:ensure_all_started` call) -- call it yourself from `entry_module` if needed.

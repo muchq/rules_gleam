@@ -9,7 +9,8 @@ runtime data available alongside the compiled code (see gleam_binary for the sin
 escript alternative, better suited to portable CLI tools that don't need bundled data).
 """
 
-load("//gleam/private:gleam_library.bzl", "GleamPackageInfo")
+load(":erlang_otp_tree.bzl", "find_erl_file")
+load(":gleam_library.bzl", "GleamPackageInfo")
 
 def _gleam_release_impl(ctx):
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
@@ -22,15 +23,31 @@ def _gleam_release_impl(ctx):
     all_compiled_dirs = dep_info.transitive_compiled_dirs.to_list()
     all_data = dep_info.transitive_data.to_list()
 
-    erl_path = "erl"
-    if hasattr(erlang_toolchain, "erl_path_str") and erlang_toolchain.erl_path_str:
-        erl_path = erlang_toolchain.erl_path_str
+    ws_name = ctx.workspace_name
+    otp_tree = getattr(erlang_toolchain, "otp_tree", None)
+    extra_runfiles = []
+
+    if otp_tree:
+        # Hermetic toolchain: bundle its OTP tree so this release is genuinely portable to any
+        # machine with the same OS/CPU architecture. The toolchain's own erl_path_str is an
+        # absolute path into Bazel's own cache (e.g. ~/.cache/bazel/.../external/...), which
+        # is *not* valid on a different machine -- baking that in would produce an artifact
+        # that only ever runs on the machine that built it.
+        otp_tree_files = otp_tree[DefaultInfo].files.to_list()
+        erl_file = find_erl_file(otp_tree_files, ctx.label)
+        erl_invocation = '"$RF/{ws}/{path}"'.format(ws = ws_name, path = erl_file.short_path)
+        extra_runfiles = otp_tree_files
+    else:
+        # Local (PATH-based) toolchain: there's no bundleable tree, so fall back to a plain
+        # PATH lookup at run time -- the same portability model as gleam_binary's escript.
+        # Whatever Erlang built this must also be reasonably compatible with whatever's on
+        # PATH wherever this release actually runs.
+        erl_invocation = "erl"
 
     launcher = ctx.actions.declare_file(ctx.label.name)
 
     # At runtime, paths are relative to this launcher's own runfiles root, joined with the
     # workspace name (matching how gleam_test locates -pa paths under $TEST_SRCDIR/$WORKSPACE).
-    ws_name = ctx.workspace_name
     pa_parts = []
     for compiled_dir in all_compiled_dirs:
         pa_parts.append('-pa "$RF/{ws}/{path}/ebin"'.format(ws = ws_name, path = compiled_dir.short_path))
@@ -58,10 +75,10 @@ else
   exit 1
 fi
 
-exec "{erl_path}" {pa_flags} -noshell -s {entry_module} {entry_function} -s init stop
+exec {erl_invocation} {pa_flags} -noshell -s {entry_module} {entry_function} -s init stop
 """.format(
             label = ctx.label.name,
-            erl_path = erl_path,
+            erl_invocation = erl_invocation,
             pa_flags = pa_flags,
             entry_module = entry_module,
             entry_function = entry_function,
@@ -69,9 +86,9 @@ exec "{erl_path}" {pa_flags} -noshell -s {entry_module} {entry_function} -s init
     )
 
     # Runfiles: all transitive compiled dirs (for -pa) plus all transitive runtime data, so
-    # code can read data files at paths relative to its own package -- see the "data" attr
-    # on gleam_library for how those paths are laid out.
-    runfiles_files = all_compiled_dirs + all_data
+    # code can read data files at paths relative to its own package (see the "data" attr on
+    # gleam_library), plus the bundled OTP tree when the hermetic toolchain provided one.
+    runfiles_files = all_compiled_dirs + all_data + extra_runfiles
 
     return [
         DefaultInfo(
@@ -105,6 +122,16 @@ Packages a `gleam_library` and its transitive deps as a runfiles-tree binary: a 
 launcher script plus the compiled BEAM directories and any declared runtime `data`
 (config files, templates, certs, etc.), reachable at runtime under the launcher's own
 runfiles directory.
+
+Under the hermetic Erlang toolchain (the default), this bundles the toolchain's own OTP tree
+into the release's runfiles, so the result is genuinely portable to any machine with the same
+OS/CPU architecture -- no Erlang needs to be installed there. Under
+`gleam.local_erlang_toolchain()`'s PATH-based discovery, there is no such tree to bundle, so
+the launcher falls back to a plain PATH lookup for `erl` at run time (the same portability
+model as `gleam_binary`'s escript): whatever Erlang built this must also be reasonably
+compatible with whatever's on PATH wherever it actually runs. If you want a hard guarantee
+that this rule never silently falls back to that PATH-lookup behavior, use
+`gleam_standalone_release` instead, which fails outright unless the hermetic toolchain is active.
 
 Unlike `gleam_binary`, this does not produce a single self-contained escript -- the
 result is a launcher script that must be run alongside its `.runfiles` directory (as

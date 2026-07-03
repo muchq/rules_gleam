@@ -108,6 +108,50 @@ jobs:
           else
             bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
           fi
+      - name: Verify examples/web_service's gleam_release on a fresh, Erlang-free machine (Docker)
+        working-directory: examples/web_service
+        run: |
+          # Same rationale as examples/standalone_cli: gleam_release also bundles the
+          # hermetic toolchain's OTP tree now, so it should be just as portable. Prove it on
+          # a genuinely fresh Docker container with no Erlang installed, not just this
+          # machine with PATH tricks.
+          if ${{ matrix.bzlmod-enabled }}; then
+            bazel build --enable_bzlmod --noenable_workspace //:web_service_bin
+          else
+            bazel build --noenable_bzlmod --enable_workspace //:web_service_bin
+          fi
+          rm -rf /tmp/portable_web_service
+          mkdir -p /tmp/portable_web_service
+          cp -L bazel-bin/web_service_bin /tmp/portable_web_service/web_service_bin
+          cp -rL bazel-bin/web_service_bin.runfiles /tmp/portable_web_service/web_service_bin.runfiles
+
+          container_id=$(docker run -d --rm -p 34817:34817 -v /tmp/portable_web_service:/artifact:ro ubuntu:24.04 /artifact/web_service_bin)
+          trap 'docker stop "$container_id" >/dev/null 2>&1 || true' EXIT
+
+          url="http://localhost:34817/"
+          ready=""
+          # A freshly pulled container plus a cold Erlang/OTP VM boot reading BEAM files off a
+          # bind-mounted volume can take noticeably longer than a warm, same-machine start --
+          # give it up to a minute rather than the few seconds that's plenty outside Docker.
+          for _ in $(seq 1 120); do
+            if response="$(curl -sf --max-time 1 "$url")"; then
+              ready=1
+              break
+            fi
+            sleep 0.5
+          done
+          if [[ -z "$ready" ]]; then
+            echo "FAIL: server never became ready on $url" >&2
+            docker logs "$container_id" || true
+            exit 1
+          fi
+
+          expected="Hello from web_service!"
+          if [[ "$response" != "$expected" ]]; then
+            echo "FAIL: expected response body '$expected', got '$response'" >&2
+            exit 1
+          fi
+          echo "PASS: got expected response from a container with no Erlang installed: $response"
       - name: Run Bazel Tests - examples/hermetic_erlang Directory
         working-directory: examples/hermetic_erlang
         run: |
@@ -146,17 +190,19 @@ jobs:
           else
             bazel build --noenable_bzlmod --enable_workspace //...
           fi
-          # Prove this binary bundles its own Erlang/OTP runtime: run it with a PATH that has
-          # basic coreutils (which erl's own wrapper script shells out to internally) but
-          # deliberately excludes /usr/bin and /usr/lib/erlang, where the "Set up Erlang" step
-          # earlier installed one system-wide (for examples/nested_smoke) -- so no system `erl`
-          # could possibly be found via PATH lookup.
-          mkdir -p /tmp/no_erlang_path
-          for tool in dirname basename readlink cat; do
-            ln -sf "$(command -v "$tool")" /tmp/no_erlang_path/
-          done
-          echo "Running with a system-Erlang-free PATH to prove no host Erlang is required..."
-          output=$(env -i HOME="$HOME" PATH=/tmp/no_erlang_path ./bazel-bin/standalone_cli)
+      - name: Verify examples/standalone_cli on a fresh, Erlang-free machine (Docker)
+        working-directory: examples/standalone_cli
+        run: |
+          # A same-machine PATH trick can't fully rule out accidentally finding a system
+          # Erlang; copy the *actual* build output onto a genuinely fresh Docker container
+          # that never had Erlang installed at all, dereferencing every runfiles symlink
+          # (cp -L) into real files first, so the copy has no dependency on this machine's
+          # Bazel cache either.
+          rm -rf /tmp/portable_standalone_cli
+          mkdir -p /tmp/portable_standalone_cli
+          cp -L bazel-bin/standalone_cli /tmp/portable_standalone_cli/standalone_cli
+          cp -rL bazel-bin/standalone_cli.runfiles /tmp/portable_standalone_cli/standalone_cli.runfiles
+          output=$(docker run --rm -v /tmp/portable_standalone_cli:/artifact:ro ubuntu:24.04 /artifact/standalone_cli)
           echo "$output"
           echo "$output" | grep -q "Hello from a standalone release with no host Erlang required!"
   pre-commit:
