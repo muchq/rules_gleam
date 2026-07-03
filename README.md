@@ -43,3 +43,9 @@ Hex dependencies can be declared one-by-one with `gleam.hex_package(...)`, or in
 pointing `gleam.hex_manifest(manifest = "//path/to:manifest.toml")` at a Gleam project's own
 `manifest.toml` lockfile (see [examples/web_service/MODULE.bazel](examples/web_service/MODULE.bazel)),
 which avoids hand-maintaining a package's full transitive dependency graph and checksums.
+
+BUILD files themselves can be generated instead of hand-written: a [Gazelle](gleam_gazelle)
+extension turns any `gleam.toml` + `src/**/*.gleam` directory into a `gleam_package(...)` target.
+Wire it into your own `gazelle_binary`'s `languages` list alongside `@rules_gleam//gleam_gazelle`
+and run `bazel run //:gazelle` -- see [examples/gazelle_smoke](examples/gazelle_smoke) for a
+worked example of wiring this into a downstream project's own `MODULE.bazel`/`BUILD.bazel`.

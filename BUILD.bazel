@@ -12,7 +12,10 @@ package_metadata(
 
 gazelle_binary(
     name = "gazelle_bin",
-    languages = ["@bazel_skylib_gazelle_plugin//bzl"],
+    languages = [
+        "@bazel_skylib_gazelle_plugin//bzl",
+        "//gleam_gazelle",
+    ],
 )
 
 gazelle(
