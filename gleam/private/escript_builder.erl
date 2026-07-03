@@ -45,38 +45,21 @@ process_path(Path) ->
             end, lists:sort(Files));
         false ->
             BaseName = filename:basename(Path),
-            IsBeam = filename:extension(Path) == ".beam",
-            IsBeamOrApp = IsBeam orelse filename:extension(Path) == ".app",
+            IsBeamOrApp = filename:extension(Path) == ".beam" orelse filename:extension(Path) == ".app",
             % Check if file contains "@@"
             NotInternal = string:str(BaseName, "@@") == 0,
             if
                 IsBeamOrApp andalso NotInternal ->
-                    Bin = read_file(Path, IsBeam),
+                    Bin = read_file(Path),
                     [{BaseName, Bin, archive_file_info(Bin)}];
                 true ->
                     []
             end
     end.
 
-read_file(Path, IsBeam) ->
+read_file(Path) ->
     {ok, Bin} = file:read_file(Path),
-    case IsBeam of
-        true -> strip_beam(Bin);
-        false -> Bin
-    end.
-
-% erlc embeds the absolute source path (and, in the debug_info chunk, the compiler's cwd) into
-% every .beam file it produces -- Gleam's own compiler invokes erlc internally as part of `gleam
-% build`, so this isn't something rules_gleam controls directly. Since Bazel runs each action in
-% a fresh sandbox directory, that path differs between two otherwise-identical builds, making
-% every compiled module byte-different for a reason that has nothing to do with its actual
-% content. beam_lib:strip/1 removes the chunks that carry this (and other debug-only metadata
-% not needed at runtime), leaving only what's needed to load and run the module.
-strip_beam(Bin) ->
-    case beam_lib:strip(Bin) of
-        {ok, {_Module, Stripped}} -> Stripped;
-        _ -> Bin
-    end.
+    Bin.
 
 % escript:create/2's {archive, Files, _} accepts {Name, Bin} or {Name, Bin, FileInfo}; without
 % an explicit FileInfo, the zip archive it builds stamps each entry with the current wall-clock
