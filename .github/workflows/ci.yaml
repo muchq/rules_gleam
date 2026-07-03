@@ -46,16 +46,29 @@ jobs:
           key: bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-bzlmod-${{ matrix.bzlmod-enabled }}-${{ hashFiles('**/MODULE.bazel', '**/WORKSPACE') }}
           restore-keys: |
             bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-bzlmod-${{ matrix.bzlmod-enabled }}-
-      # - name: Run Bazel Tests - Root Directory
-      #   if: ${{ !(matrix.bzlmod-enabled == false) }} # Skips if bzlmod-enabled is false
-      #   run: |
-      #     echo "Running tests in root directory with bzlmod=${{ matrix.bzlmod-enabled }}"
-      #     if ${{ matrix.bzlmod-enabled }}; then
-      #       bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
-      #     else
-      #       # This else branch will not be hit due to the 'if' condition on the step for bzlmod=false
-      #       bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
-      #     fi
+      - name: Run Bazel Tests - gazelle/gleam Directory (Gazelle language extension)
+        run: |
+          echo "Running the gleam Gazelle language extension's Go unit tests"
+          if ${{ matrix.bzlmod-enabled }}; then
+            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //gazelle/...
+          else
+            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //gazelle/...
+          fi
+      - name: Verify gazelle generates a BUILD file for a fresh Gleam package
+        run: |
+          echo "Running bazel run //:gazelle against gazelle/testdata/sample_package (no BUILD.bazel checked in)"
+          bazel run --enable_bzlmod --noenable_workspace //:gazelle -- gazelle/testdata/sample_package
+          generated="gazelle/testdata/sample_package/BUILD.bazel"
+          if [[ ! -f "$generated" ]]; then
+            echo "ERROR: gazelle did not generate $generated" >&2
+            exit 1
+          fi
+          cat "$generated"
+          grep -q 'gleam_package(' "$generated"
+          grep -q 'name = "sample_package"' "$generated"
+          grep -q 'srcs = glob(\["src/\*\*/\*.gleam"\])' "$generated"
+          grep -q 'gleam_toml = "gleam.toml"' "$generated"
+          rm "$generated" # this fixture's BUILD.bazel is generated fresh by each CI run, not checked in
       - name: Run Bazel Tests - examples/smoke Directory
         working-directory: examples/smoke
         run: |
