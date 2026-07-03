@@ -48,6 +48,25 @@ def _resolves_macos_x86_64_test_impl(ctx):
 
 resolves_macos_x86_64_test = unittest.make(_resolves_macos_x86_64_test_impl)
 
+def _resolves_linux_amd64_alternate_spelling_test_impl(ctx):
+    env = unittest.begin(ctx)
+
+    # Same alternate-spelling concern as the arm64 test above, for the other pair: some
+    # Bazel/OS combinations report "amd64" instead of "x86_64".
+    ctx_fake = _fake_repository_ctx("linux", "amd64")
+    asserts.equals(env, "x86_64-unknown-linux-gnu", host_platform(ctx_fake))
+    return unittest.end(env)
+
+resolves_linux_amd64_alternate_spelling_test = unittest.make(_resolves_linux_amd64_alternate_spelling_test_impl)
+
+def _resolves_macos_amd64_alternate_spelling_test_impl(ctx):
+    env = unittest.begin(ctx)
+    ctx_fake = _fake_repository_ctx("mac os x", "amd64")
+    asserts.equals(env, "x86_64-apple-darwin", host_platform(ctx_fake))
+    return unittest.end(env)
+
+resolves_macos_amd64_alternate_spelling_test = unittest.make(_resolves_macos_amd64_alternate_spelling_test_impl)
+
 def _resolves_windows_regardless_of_arch_test_impl(ctx):
     env = unittest.begin(ctx)
 
@@ -107,6 +126,8 @@ def host_repo_test_suite(name):
         resolves_linux_aarch64_test,
         resolves_macos_arm64_alternate_spelling_test,
         resolves_macos_x86_64_test,
+        resolves_linux_amd64_alternate_spelling_test,
+        resolves_macos_amd64_alternate_spelling_test,
         resolves_windows_regardless_of_arch_test,
     )
     native.test_suite(
