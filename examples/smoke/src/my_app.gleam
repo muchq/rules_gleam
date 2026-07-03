@@ -1,3 +1,3 @@
-pub fn greeting() ->    String {
-   "Hello from my_app!"
+pub fn greeting() -> String {
+  "Hello from my_app!"
 }
