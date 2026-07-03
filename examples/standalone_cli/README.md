@@ -1,7 +1,7 @@
 # standalone_cli
 
 Demonstrates `gleam_standalone_release`: a Gleam binary that bundles the Erlang/OTP runtime
-itself, so the machine that *runs* it needs no Erlang installed at all -- unlike `gleam_binary`
+itself, so the machine that _runs_ it needs no Erlang installed at all -- unlike `gleam_binary`
 (escript, see [examples/smoke](../smoke)) and `gleam_release` (runfiles-tree, see
 [examples/web_service](../web_service)), both of which still shell out to a system Erlang.
 
