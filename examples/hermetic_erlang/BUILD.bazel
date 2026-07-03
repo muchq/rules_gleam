@@ -1,0 +1,13 @@
+load("@rules_gleam//gleam:defs.bzl", "gleam_package")
+
+# This target's only purpose is to prove gleam.erlang_toolchain(...) actually works end to
+# end: compiling and running gleeunit tests requires a working `erl`/`erlc`/`escript` from the
+# hermetically-downloaded OTP release, not whatever (if anything) is on the host's PATH.
+gleam_package(
+    name = "hermetic_erlang",
+    srcs = glob(["src/**/*.gleam"]),
+    gleam_toml = "gleam.toml",
+    test_deps = ["@gleam_packages//:gleeunit"],
+    test_srcs = glob(["test/**/*.gleam"]),
+    deps = ["@gleam_packages//:gleam_stdlib"],
+)

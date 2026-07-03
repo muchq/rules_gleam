@@ -7,9 +7,12 @@ Erlang/OTP target.
 
 These rules are early-stage. In particular:
 
-- **Erlang is not hermetic yet.** The Erlang/OTP toolchain is discovered on the host (via
+- **Erlang is not hermetic by default.** The Erlang/OTP toolchain is discovered on the host (via
   `PATH`), not downloaded by Bazel, so builds depend on whatever Erlang/OTP version is installed
-  where Bazel runs. Fetching a hermetic, versioned Erlang/OTP toolchain is tracked as future work.
+  where Bazel runs. An opt-in hermetic toolchain is available via
+  `gleam.erlang_toolchain(otp_version = "27.1.2")` in `MODULE.bazel`, which downloads a prebuilt
+  OTP release instead (see [examples/hermetic_erlang](examples/hermetic_erlang)); it currently
+  supports Linux (glibc-linked, tied to a specific distro/version tag) and macOS, but not Windows.
 - **Test coverage is currently limited to basic end-to-end examples** (see `examples/`) rather
   than a full unit test suite for the rule implementations themselves.
 - `gleam_binary` produces a self-contained `escript`, which still requires an Erlang runtime to

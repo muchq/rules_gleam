@@ -2,7 +2,10 @@
 
 This extension handles:
 1. Gleam compiler toolchain registration (downloads gleam binary per platform).
-2. Local Erlang detection (finds system-installed Erlang/OTP).
+2. Erlang toolchain configuration: by default, detects system-installed Erlang/OTP on PATH
+   (see erlang/private/local_erlang_repository.bzl); optionally, gleam.erlang_toolchain(...)
+   downloads a specific prebuilt Erlang/OTP release instead, for a hermetic build
+   (see erlang/private/hermetic_erlang_repository.bzl).
 3. Hex package management (downloads and exposes 3p Gleam packages from hex.pm).
 
 Usage in MODULE.bazel:
@@ -13,8 +16,14 @@ gleam.hex_package(name = "gleam_stdlib", version = "0.60.0", sha256 = "...", dep
 gleam.hex_package(name = "gleeunit", version = "1.0.2", sha256 = "...", deps = ["gleam_stdlib"])
 use_repo(gleam, "gleam_toolchains", "local_config_erlang", "gleam_packages")
 ```
+
+To opt into a hermetic, downloaded Erlang/OTP instead of PATH-based discovery:
+```starlark
+gleam.erlang_toolchain(otp_version = "27.1.2")
+```
 """
 
+load("//erlang/private:hermetic_erlang_repository.bzl", "hermetic_erlang_repository")  # buildifier: disable=bzl-visibility
 load("//erlang/private:local_erlang_repository.bzl", "local_erlang_repository")  # buildifier: disable=bzl-visibility
 load(":repositories.bzl", "gleam_register_toolchains")
 
@@ -34,6 +43,26 @@ bytes used to build -- it only turns a silent cross-machine reproducibility gap 
 actionable failure when the host's Erlang/OTP does not match what you expect. Leave unset to
 accept whatever Erlang/OTP release is found.
 """, default = ""),
+})
+
+erlang_toolchain = tag_class(attrs = {
+    "otp_version": attr.string(doc = """\
+Exact Erlang/OTP release to fetch and use hermetically instead of discovering Erlang on PATH
+(e.g. "27.1.2"). When this tag is used, the local PATH-based Erlang discovery in
+erlang/private/local_erlang_repository.bzl is bypassed entirely in favor of downloading a
+prebuilt OTP release from the same origins used by erlef/setup-beam (builds.hex.pm for Linux,
+erlef/otp_builds on GitHub for macOS). Mutually exclusive with gleam.toolchain(erlang_version=...).
+""", mandatory = True),
+    "os_version": attr.string(doc = """\
+Linux distro/version tag used to select the prebuilt OTP archive (e.g. "ubuntu-22.04").
+Ignored on macOS. The Linux archives are glibc-linked and tied to a specific distro version --
+there is no portable musl-static build available from this origin.
+""", default = "ubuntu-22.04"),
+    "sha256": attr.string_dict(doc = """\
+Optional map from "<os>_<arch>" (e.g. "linux_amd64", "linux_arm64", "macos_x86_64",
+"macos_aarch64") to the expected sha256 of that platform's OTP tarball. Platforms without an
+entry are downloaded unverified; the actual checksum is printed so it can be pinned.
+""", default = {}),
 })
 
 hex_package = tag_class(attrs = {
@@ -66,9 +95,17 @@ def _toolchain_extension(module_ctx):
     registrations = {}
     packages = []
     erlang_versions = []
+    hermetic_erlang_toolchains = []
 
     # Collect toolchain registrations and hex packages from all modules.
     for mod in module_ctx.modules:
+        for hermetic in mod.tags.erlang_toolchain:
+            hermetic_erlang_toolchains.append(struct(
+                otp_version = hermetic.otp_version,
+                os_version = hermetic.os_version,
+                sha256 = hermetic.sha256,
+            ))
+
         for toolchain in mod.tags.toolchain:
             if toolchain.name != _DEFAULT_NAME and not mod.is_root:
                 fail("""\
@@ -114,16 +151,40 @@ def _toolchain_extension(module_ctx):
             register = False,
         )
 
-    # Register local Erlang toolchain repository.
-    if len(erlang_versions) > 1:
-        msg = (
-            "Conflicting erlang_version pins were declared across gleam.toolchain calls: {}. " +
-            "Only one Erlang/OTP release can be required at a time since all modules share a " +
-            "single detected Erlang toolchain."
+    # Register the Erlang toolchain repository: hermetic (downloaded) if gleam.erlang_toolchain
+    # was used anywhere, otherwise the default PATH-based local discovery.
+    if len(hermetic_erlang_toolchains) > 1:
+        fail(
+            "Only one gleam.erlang_toolchain(...) call is allowed across all modules, since " +
+            "all modules share a single Erlang toolchain repository. Found: {}".format(
+                [h.otp_version for h in hermetic_erlang_toolchains],
+            ),
         )
-        fail(msg.format(erlang_versions))
-    pinned_erlang_version = erlang_versions[0] if erlang_versions else ""
-    local_erlang_repository(name = "local_config_erlang", erlang_version = pinned_erlang_version)
+
+    if hermetic_erlang_toolchains:
+        if erlang_versions:
+            fail(
+                "gleam.toolchain(erlang_version = ...) and gleam.erlang_toolchain(...) are " +
+                "mutually exclusive: the hermetic toolchain already pins an exact Erlang/OTP " +
+                "release, so a separate PATH-detection version pin is redundant.",
+            )
+        hermetic = hermetic_erlang_toolchains[0]
+        hermetic_erlang_repository(
+            name = "local_config_erlang",
+            otp_version = hermetic.otp_version,
+            os_version = hermetic.os_version,
+            sha256 = hermetic.sha256,
+        )
+    else:
+        if len(erlang_versions) > 1:
+            msg = (
+                "Conflicting erlang_version pins were declared across gleam.toolchain calls: {}. " +
+                "Only one Erlang/OTP release can be required at a time since all modules share a " +
+                "single detected Erlang toolchain."
+            )
+            fail(msg.format(erlang_versions))
+        pinned_erlang_version = erlang_versions[0] if erlang_versions else ""
+        local_erlang_repository(name = "local_config_erlang", erlang_version = pinned_erlang_version)
 
     # Register Hex packages repository if any packages were declared.
     if packages:
@@ -241,6 +302,7 @@ gleam = module_extension(
     implementation = _toolchain_extension,
     tag_classes = {
         "toolchain": gleam_toolchain,
+        "erlang_toolchain": erlang_toolchain,
         "hex_package": hex_package,
     },
 )
