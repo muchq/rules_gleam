@@ -11,6 +11,13 @@ def find_erl_file(otp_tree_files, label):
     Fails with an actionable error if not found -- this would indicate an internal error in
     the hermetic toolchain itself (a mismatch in the extracted OTP archive's layout), not a
     user error.
+
+    Args:
+      otp_tree_files: list of File, the hermetic toolchain's otp_tree filegroup files.
+      label: Label of the rule doing the lookup, used only for the error message.
+
+    Returns:
+      The `otp/bin/erl` File.
     """
     for f in otp_tree_files:
         if f.short_path.endswith("otp/bin/erl"):
