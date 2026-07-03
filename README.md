@@ -33,4 +33,5 @@ git_override(
 
 ## Usage
 
-See a basic example [here](examples/smoke)
+See a basic example [here](examples/smoke). For a runnable HTTP service with a real
+end-to-end test, see [examples/web_service](examples/web_service).
