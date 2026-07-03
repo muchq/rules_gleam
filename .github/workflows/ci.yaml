@@ -118,6 +118,45 @@ jobs:
           if ! cmp -s /tmp/my_app_build_1 /tmp/my_app_build_2; then
             echo "FAIL: two independent builds of //:my_app produced different output bytes" >&2
             cmp /tmp/my_app_build_1 /tmp/my_app_build_2 || true
+            echo "--- diagnostic: diffing escript archive entries ---" >&2
+            erl -noshell -eval '
+              {ok, E1} = escript:extract("/tmp/my_app_build_1", []),
+              {ok, E2} = escript:extract("/tmp/my_app_build_2", []),
+              {archive, A1} = lists:keyfind(archive, 1, E1),
+              {archive, A2} = lists:keyfind(archive, 1, E2),
+              {ok, Z1} = zip:extract(A1, [memory]),
+              {ok, Z2} = zip:extract(A2, [memory]),
+              M1 = maps:from_list(Z1),
+              M2 = maps:from_list(Z2),
+              Names1 = lists:sort(maps:keys(M1)),
+              Names2 = lists:sort(maps:keys(M2)),
+              io:format("names only in build_1: ~p~n", [Names1 -- Names2]),
+              io:format("names only in build_2: ~p~n", [Names2 -- Names1]),
+              [ begin
+                  B1 = maps:get(N, M1),
+                  B2 = maps:get(N, M2),
+                  case B1 =:= B2 of
+                    true -> ok;
+                    false ->
+                      FirstDiff = (fun F(I) ->
+                        case {I > byte_size(B1), I > byte_size(B2)} of
+                          {true, _} -> {shorter1, I};
+                          {_, true} -> {shorter2, I};
+                          _ ->
+                            case binary:at(B1, I) =:= binary:at(B2, I) of
+                              true -> F(I + 1);
+                              false -> I
+                            end
+                        end
+                      end)(0),
+                      Snip1 = binary:part(B1, FirstDiff, min(60, byte_size(B1) - FirstDiff)),
+                      Snip2 = binary:part(B2, FirstDiff, min(60, byte_size(B2) - FirstDiff)),
+                      io:format("DIFFERS: ~s (size ~p vs ~p, first diff at ~p)~n  ~p~n  ~p~n",
+                        [N, byte_size(B1), byte_size(B2), FirstDiff, Snip1, Snip2])
+                  end
+                end || N <- Names1, maps:is_key(N, M2) ],
+              halt().
+            ' >&2 || true
             exit 1
           fi
           echo "PASS: //:my_app build is deterministic byte-for-byte across a clean rebuild"
