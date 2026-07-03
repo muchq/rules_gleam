@@ -134,11 +134,17 @@ jobs:
           else
             bazel build --noenable_bzlmod --enable_workspace //...
           fi
-          # Prove this binary bundles its own Erlang/OTP runtime: run it with PATH cleared
-          # entirely, so no `erl` could possibly be found via PATH lookup even though the
-          # "Set up Erlang" step earlier installed one system-wide for the other examples.
-          echo "Running with PATH cleared to prove no host Erlang is required..."
-          output=$(env -i HOME="$HOME" PATH= ./bazel-bin/standalone_cli)
+          # Prove this binary bundles its own Erlang/OTP runtime: run it with a PATH that has
+          # basic coreutils (which erl's own wrapper script shells out to internally) but
+          # deliberately excludes /usr/bin and /usr/lib/erlang, where the "Set up Erlang" step
+          # earlier installed one system-wide for the other examples -- so no system `erl`
+          # could possibly be found via PATH lookup.
+          mkdir -p /tmp/no_erlang_path
+          for tool in dirname basename readlink cat; do
+            ln -sf "$(command -v "$tool")" /tmp/no_erlang_path/
+          done
+          echo "Running with a system-Erlang-free PATH to prove no host Erlang is required..."
+          output=$(env -i HOME="$HOME" PATH=/tmp/no_erlang_path ./bazel-bin/standalone_cli)
           echo "$output"
           echo "$output" | grep -q "Hello from a standalone release with no host Erlang required!"
   pre-commit:
