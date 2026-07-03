@@ -163,6 +163,11 @@ load("@muchq_rules_gleam//erlang/private:erlang_toolchain.bzl", "erlang_toolchai
 
 package(default_visibility = ["//visibility:public"])
 
+filegroup(
+    name = "otp_tree",
+    srcs = glob(["otp/**"]),
+)
+
 erlang_toolchain_config(
     name = "local_config",
     escript_path = "{escript_path}",
@@ -171,6 +176,7 @@ erlang_toolchain_config(
     erts_include_path = "{erts_include_path}",
     erl_libs_path = "{erl_libs_path}",
     erlang_version = "{erlang_version}",
+    otp_tree = ":otp_tree",
 )
 
 erlang_toolchain(

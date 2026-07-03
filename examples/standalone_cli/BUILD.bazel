@@ -1,0 +1,18 @@
+load("@rules_gleam//gleam:defs.bzl", "gleam_library", "gleam_standalone_release")
+
+gleam_library(
+    name = "standalone_cli_lib",
+    package_name = "standalone_cli",
+    srcs = glob(["src/**/*.gleam"]),
+    data = ["gleam.toml"],
+    deps = ["@gleam_packages//:gleam_stdlib"],
+)
+
+# Bundles its own Erlang/OTP runtime (via the hermetic toolchain configured in MODULE.bazel) --
+# the resulting bazel-bin/standalone_cli needs no Erlang installed to run. CI proves this by
+# invoking it with PATH cleared entirely.
+gleam_standalone_release(
+    name = "standalone_cli",
+    dep = ":standalone_cli_lib",
+    entry_module = "main",
+)

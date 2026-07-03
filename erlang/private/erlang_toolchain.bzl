@@ -17,6 +17,9 @@ def _erlang_toolchain_impl(ctx):
             erts_include_path_str = config.erts_include_path,
             erl_libs_path_str = config.erl_libs_path,
             version = config.erlang_version,
+
+            # A filegroup Target covering the whole OTP tree, or None (see ErlangToolchainConfigInfo.otp_tree).
+            otp_tree = config.otp_tree,
         ),
     ]
 
