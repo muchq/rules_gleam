@@ -1,0 +1,9 @@
+name = "web_service"
+version = "0.1.0"
+
+[dependencies]
+gleam_stdlib = ">= 1.0.0 and < 2.0.0"
+mist = ">= 6.0.0 and < 7.0.0"
+
+[dev-dependencies]
+gleeunit = ">= 1.11.0 and < 2.0.0"

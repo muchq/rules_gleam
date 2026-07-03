@@ -74,6 +74,15 @@ jobs:
           else
             bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
           fi
+      - name: Run Bazel Tests - examples/web_service Directory
+        working-directory: examples/web_service
+        run: |
+          echo "Running tests in examples/web_service directory with bzlmod=${{ matrix.bzlmod-enabled }}"
+          if ${{ matrix.bzlmod-enabled }}; then
+            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
+          else
+            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
+          fi
       - name: Run Bazel Build - examples/hello_world Directory
         working-directory: examples/hello_world
         run: |

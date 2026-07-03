@@ -1,0 +1,45 @@
+load("@rules_gleam//gleam:defs.bzl", "gleam_package", "gleam_release")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
+
+_DEPS = [
+    "@gleam_packages//:exception",
+    "@gleam_packages//:gleam_erlang",
+    "@gleam_packages//:gleam_http",
+    "@gleam_packages//:gleam_otp",
+    "@gleam_packages//:gleam_stdlib",
+    "@gleam_packages//:glisten",
+    "@gleam_packages//:gramps",
+    "@gleam_packages//:hpack_erl",
+    "@gleam_packages//:logging",
+    "@gleam_packages//:mist",
+]
+
+# gleam_package expands to a gleam_library "web_service_lib" (entry_module is not set
+# here -- the runnable target below is a gleam_release, not a gleam_binary escript) and a
+# gleam_test "web_service_test" for the pure-function unit test.
+gleam_package(
+    name = "web_service_lib",
+    srcs = glob(["src/**/*.gleam"]),
+    gleam_toml = "gleam.toml",
+    deps = _DEPS,
+    test_deps = ["@gleam_packages//:gleeunit"],
+    test_srcs = glob(["test/**/*.gleam"]),
+)
+
+# Packaged as a runfiles-tree binary (not a single-file escript): a real web service
+# doesn't need portability to a machine without Bazel/runfiles the way a CLI tool might,
+# and this shape is what composes with `data` and with container-image rules.
+gleam_release(
+    name = "web_service_bin",
+    dep = ":web_service_lib",
+    entry_module = "web_service",
+)
+
+# An end-to-end/acceptance test: starts the real web_service_bin binary and makes a real
+# HTTP request against it. See test/web_service_test.gleam for the unit-test level.
+sh_test(
+    name = "web_service_e2e_test",
+    srcs = ["e2e_test.sh"],
+    data = [":web_service_bin"],
+    tags = ["requires-network"],
+)
