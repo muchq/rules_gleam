@@ -172,6 +172,17 @@ def _gleam_hex_packages_impl(repository_ctx):
         # Clean up the temp extraction.
         repository_ctx.delete("_tmp_" + name)
 
+        # Some Hex packages consumed transitively (e.g. plain Erlang/rebar3 packages like
+        # hpack_erl, pulled in by Gleam packages that wrap them) ship no gleam.toml at all.
+        # `gleam compile-package` requires one present in the package directory regardless
+        # of the package's own build tooling, so synthesize a minimal one if the extracted
+        # package didn't ship its own.
+        if not repository_ctx.path("{}/gleam.toml".format(name)).exists:
+            repository_ctx.file(
+                "{}/gleam.toml".format(name),
+                'name = "{}"\nversion = "{}"\n'.format(name, version),
+            )
+
         # Generate BUILD.bazel for this package.
         deps_str = ", ".join(['"//{}"'.format(d) for d in deps])
 
@@ -183,7 +194,7 @@ gleam_library(
     name = "{name}",
     data = ["gleam.toml"],
     package_name = "{name}",
-    srcs = glob(["src/**/*.gleam", "src/**/*.erl", "src/**/*.mjs"]),
+    srcs = glob(["src/**/*.gleam", "src/**/*.erl", "src/**/*.mjs"], allow_empty = True),
     deps = [{deps}],
     visibility = ["//visibility:public"],
 )
