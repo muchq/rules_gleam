@@ -71,15 +71,15 @@ jobs:
           echo "Running bazel run //:gazelle against gleam_gazelle/testdata/sample_package (no BUILD.bazel checked in)"
           bazel run //:gazelle -- gleam_gazelle/testdata/sample_package
           generated="gleam_gazelle/testdata/sample_package/BUILD.bazel"
+          want="gleam_gazelle/testdata/sample_package/BUILD.want"
           if [[ ! -f "$generated" ]]; then
             echo "ERROR: gazelle did not generate $generated" >&2
             exit 1
           fi
-          cat "$generated"
-          grep -q 'gleam_package(' "$generated"
-          grep -q 'name = "sample_package"' "$generated"
-          grep -q 'srcs = glob(\["src/\*\*/\*.gleam"\])' "$generated"
-          grep -q 'gleam_toml = "gleam.toml"' "$generated"
+          # Real golden-file diff (not just a grep for a few substrings) against the same
+          # BUILD.want convention gleam_gazelle's own Go golden tests use (see golden_test.go) --
+          # this exercises the actual compiled gazelle_binary end-to-end, not just the Go package.
+          diff -u "$want" "$generated"
           rm "$generated" # this fixture's BUILD.bazel is generated fresh by each CI run, not checked in
       - name: Run Bazel Tests - examples/gazelle_smoke Directory
         working-directory: examples/gazelle_smoke
@@ -213,6 +213,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - uses: pre-commit/action@v3.0.1
   conclusion:
     name: Test Conclusion

@@ -1,0 +1,6 @@
+gleam_package(
+    name = "my_bin",
+    srcs = glob(["src/**/*.gleam"]),
+    entry_module = "main",
+    gleam_toml = "gleam.toml",
+)
