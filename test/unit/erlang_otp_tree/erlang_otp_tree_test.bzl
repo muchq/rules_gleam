@@ -46,7 +46,7 @@ def _bundles_runfiles_relative_path_when_otp_tree_present_test_impl(ctx):
     # This exact shape is what gleam_release got wrong before PR #85: it must be a
     # runfiles-relative path (quoted, joined with $RF and the workspace name), never the
     # toolchain's own absolute build-machine path.
-    asserts.equals(env, '"$RF/my_ws/external/foo/otp/bin/erl"', invocation)
+    asserts.equals(env, '"$RF/my_ws/external/foo/otp/bin/erl"', invocation)  # buildifier: disable=external-path
     asserts.equals(env, files, extra_runfiles)
     return unittest.end(env)
 

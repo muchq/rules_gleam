@@ -23,7 +23,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Set up Erlang (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -42,7 +42,7 @@ jobs:
           echo "Installing Erlang..."
           brew install erlang
       - name: Set up Bazel
-        uses: bazel-contrib/setup-bazel@0.18.0
+        uses: bazel-contrib/setup-bazel@0.19.0
         # No version-related input: this action's valid inputs are bazelisk-version (which
         # Bazel version *fetching tool* to install, not which Bazel itself) plus cache/output
         # knobs -- it has no "version" input despite a previous revision of this file passing
@@ -50,7 +50,7 @@ jobs:
         # Bazel version is resolved by Bazelisk from .bazelversion at the repo root, same as
         # any local `bazel` invocation.
       - name: Mount Bazel cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/bazel
@@ -212,7 +212,7 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pre-commit/action@v3.0.1
   conclusion:
     name: Test Conclusion
