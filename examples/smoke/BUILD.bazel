@@ -29,5 +29,8 @@ gleam_release(
 # Fails with a diff if any source or test file isn't already `gleam format`-clean.
 gleam_format_test(
     name = "my_app_format_test",
-    srcs = glob(["src/**/*.gleam", "test/**/*.gleam"]),
+    srcs = glob([
+        "src/**/*.gleam",
+        "test/**/*.gleam",
+    ]),
 )
