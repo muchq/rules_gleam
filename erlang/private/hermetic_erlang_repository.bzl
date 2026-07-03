@@ -17,18 +17,14 @@ can be pinned in a follow-up change -- mirroring how `bazel_dep`/`http_archive` 
 normally discovered on first use.
 """
 
-_LINUX_ARCH = {
+# erlef's build origins (builds.hex.pm for Linux, erlef/otp_builds releases for macOS) both
+# name their assets/paths using this same "arm64"/"amd64" convention, regardless of which raw
+# arch string repository_ctx.os.arch happens to report (e.g. "aarch64" on real macOS runners).
+_ARCH = {
     "aarch64": "arm64",
     "arm64": "arm64",
     "x86_64": "amd64",
     "amd64": "amd64",
-}
-
-_MACOS_ARCH = {
-    "aarch64": "aarch64",
-    "arm64": "aarch64",
-    "x86_64": "x86_64",
-    "amd64": "x86_64",
 }
 
 def _sha256_key(os_key, arch):
@@ -55,7 +51,7 @@ def _hermetic_erlang_repository_impl(repository_ctx):
 
     if "linux" in os_name:
         os_key = "linux"
-        linux_arch = _LINUX_ARCH.get(arch)
+        linux_arch = _ARCH.get(arch)
         if not linux_arch:
             fail("Unsupported CPU architecture for hermetic Erlang/OTP on Linux: {}".format(arch))
         os_constraint = "@platforms//os:linux"
@@ -103,11 +99,11 @@ def _hermetic_erlang_repository_impl(repository_ctx):
 
     elif "mac os" in os_name:
         os_key = "macos"
-        macos_arch = _MACOS_ARCH.get(arch)
+        macos_arch = _ARCH.get(arch)
         if not macos_arch:
             fail("Unsupported CPU architecture for hermetic Erlang/OTP on macOS: {}".format(arch))
         os_constraint = "@platforms//os:osx"
-        cpu_constraint = "@platforms//cpu:arm64" if macos_arch == "aarch64" else "@platforms//cpu:x86_64"
+        cpu_constraint = "@platforms//cpu:arm64" if macos_arch == "arm64" else "@platforms//cpu:x86_64"
 
         url = "https://github.com/erlef/otp_builds/releases/download/{tag}/{tag}-macos-{arch}.tar.gz".format(
             tag = otp_tag,
@@ -222,7 +218,7 @@ hermetic_erlang_repository = repository_rule(
             default = "ubuntu-22.04",
         ),
         "sha256": attr.string_dict(
-            doc = "Optional map from \"<os>_<arch>\" (e.g. \"linux_amd64\", \"linux_arm64\", \"macos_x86_64\", \"macos_aarch64\") to the expected sha256 of that platform's OTP tarball. Platforms without an entry are downloaded unverified, printing the observed checksum so it can be pinned.",
+            doc = "Optional map from \"<os>_<arch>\" (e.g. \"linux_amd64\", \"linux_arm64\", \"macos_amd64\", \"macos_arm64\") to the expected sha256 of that platform's OTP tarball. Platforms without an entry are downloaded unverified, printing the observed checksum so it can be pinned.",
             default = {},
         ),
     },

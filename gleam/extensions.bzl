@@ -91,8 +91,8 @@ Ignored on macOS. The Linux archives are glibc-linked and tied to a specific dis
 there is no portable musl-static build available from this origin.
 """, default = "ubuntu-22.04"),
     "sha256": attr.string_dict(doc = """\
-Optional map from "<os>_<arch>" (e.g. "linux_amd64", "linux_arm64", "macos_x86_64",
-"macos_aarch64") to the expected sha256 of that platform's OTP tarball. Platforms without an
+Optional map from "<os>_<arch>" (e.g. "linux_amd64", "linux_arm64", "macos_amd64",
+"macos_arm64") to the expected sha256 of that platform's OTP tarball. Platforms without an
 entry are downloaded unverified; the actual checksum is printed so it can be pinned.
 """, default = {}),
 })
