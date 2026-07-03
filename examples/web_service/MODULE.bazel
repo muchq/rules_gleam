@@ -50,7 +50,10 @@ gleam.hex_package(
     name = "gleam_otp",
     sha256 = "ba6a294e295e428ec1562dc1c11ea7530dcb981e8359134beabc8493b7b2258e",
     version = "1.2.0",
-    deps = ["gleam_erlang", "gleam_stdlib"],
+    deps = [
+        "gleam_erlang",
+        "gleam_stdlib",
+    ],
 )
 gleam.hex_package(
     name = "logging",
@@ -62,13 +65,23 @@ gleam.hex_package(
     name = "glisten",
     sha256 = "7795aa50830656f3a0316a6b26595f893c83272da901b3405e31339caa31a10b",
     version = "9.0.1",
-    deps = ["gleam_erlang", "gleam_otp", "gleam_stdlib", "logging"],
+    deps = [
+        "gleam_erlang",
+        "gleam_otp",
+        "gleam_stdlib",
+        "logging",
+    ],
 )
 gleam.hex_package(
     name = "gramps",
     sha256 = "d55636072dee173f6586a5679d3c02ec7a0de3f8646b78c351b72908ff223df7",
     version = "6.0.1",
-    deps = ["gleam_crypto", "gleam_erlang", "gleam_http", "gleam_stdlib"],
+    deps = [
+        "gleam_crypto",
+        "gleam_erlang",
+        "gleam_http",
+        "gleam_stdlib",
+    ],
 )
 gleam.hex_package(
     name = "hpack_erl",

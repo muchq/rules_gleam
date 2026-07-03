@@ -14,16 +14,17 @@ _DEPS = [
     "@gleam_packages//:mist",
 ]
 
-# gleam_package expands to a gleam_library "web_service_lib" (entry_module is not set
-# here -- the runnable target below is a gleam_release, not a gleam_binary escript) and a
-# gleam_test "web_service_test" for the pure-function unit test.
+# gleam_package expands to a gleam_library "web_service" (entry_module is not set here --
+# the runnable target below is a gleam_release, not a gleam_binary escript, so the library
+# takes the bare target name, matching gleam.toml's package name) and a gleam_test
+# "web_service_test" for the pure-function unit test.
 gleam_package(
-    name = "web_service_lib",
+    name = "web_service",
     srcs = glob(["src/**/*.gleam"]),
     gleam_toml = "gleam.toml",
-    deps = _DEPS,
     test_deps = ["@gleam_packages//:gleeunit"],
     test_srcs = glob(["test/**/*.gleam"]),
+    deps = _DEPS,
 )
 
 # Packaged as a runfiles-tree binary (not a single-file escript): a real web service
@@ -31,7 +32,7 @@ gleam_package(
 # and this shape is what composes with `data` and with container-image rules.
 gleam_release(
     name = "web_service_bin",
-    dep = ":web_service_lib",
+    dep = ":web_service",
     entry_module = "web_service",
 )
 
