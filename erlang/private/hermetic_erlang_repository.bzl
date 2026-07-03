@@ -30,6 +30,52 @@ _ARCH = {
 def _sha256_key(os_key, arch):
     return "{}_{}".format(os_key, arch)
 
+def resolve_host(repository_ctx):
+    """Determine the OS/arch/platform-constraint quadruple for a repository_ctx's host.
+
+    Pulled out of _hermetic_erlang_repository_impl so it can be unit-tested (test/unit/
+    hermetic_erlang_repository) against plain fake structs, without needing a real
+    repository_ctx or a network download -- the same trick host_repo.bzl's host_platform uses.
+
+    Args:
+        repository_ctx: a repository_ctx, or any struct exposing the same `.os.name`/`.os.arch`
+            fields (e.g. a fake used by tests).
+
+    Returns:
+        A struct with fields:
+          os_key: "linux" or "macos" (used to key the sha256 dict and pick a download URL shape)
+          arch: "arm64" or "amd64" (erlef's origin-naming convention, not necessarily
+              repository_ctx.os.arch's raw spelling)
+          os_constraint: a "@platforms//os:..." label for the toolchain() definition
+          cpu_constraint: a "@platforms//cpu:..." label for the toolchain() definition
+    """
+    os_name = repository_ctx.os.name.lower()
+    arch = repository_ctx.os.arch
+
+    if "linux" in os_name:
+        os_key = "linux"
+        os_label = "Linux"
+        os_constraint = "@platforms//os:linux"
+    elif "mac os" in os_name:
+        os_key = "macos"
+        os_label = "macOS"
+        os_constraint = "@platforms//os:osx"
+    else:
+        fail("Hermetic Erlang/OTP toolchain does not support OS: {}".format(repository_ctx.os.name))
+
+    normalized_arch = _ARCH.get(arch)
+    if not normalized_arch:
+        fail("Unsupported CPU architecture for hermetic Erlang/OTP on {}: {}".format(os_label, arch))
+
+    cpu_constraint = "@platforms//cpu:arm64" if normalized_arch == "arm64" else "@platforms//cpu:x86_64"
+
+    return struct(
+        os_key = os_key,
+        arch = normalized_arch,
+        os_constraint = os_constraint,
+        cpu_constraint = cpu_constraint,
+    )
+
 def _find_executable(repository_ctx, root, name):
     result = repository_ctx.execute(["find", str(root), "-type", "f", "-name", name, "-path", "*/bin/" + name])
     lines = [line for line in result.stdout.strip().split("\n") if line]
@@ -46,23 +92,19 @@ def _hermetic_erlang_repository_impl(repository_ctx):
     otp_tag = "OTP-" + otp_version
     sha256_map = repository_ctx.attr.sha256
 
-    os_name = repository_ctx.os.name.lower()
-    arch = repository_ctx.os.arch
+    host = resolve_host(repository_ctx)
+    os_key = host.os_key
+    arch = host.arch
+    os_constraint = host.os_constraint
+    cpu_constraint = host.cpu_constraint
 
-    if "linux" in os_name:
-        os_key = "linux"
-        linux_arch = _ARCH.get(arch)
-        if not linux_arch:
-            fail("Unsupported CPU architecture for hermetic Erlang/OTP on Linux: {}".format(arch))
-        os_constraint = "@platforms//os:linux"
-        cpu_constraint = "@platforms//cpu:arm64" if linux_arch == "arm64" else "@platforms//cpu:x86_64"
-
+    if os_key == "linux":
         url = "https://builds.hex.pm/builds/otp/{arch}/{os_version}/{tag}.tar.gz".format(
-            arch = linux_arch,
+            arch = arch,
             os_version = repository_ctx.attr.os_version,
             tag = otp_tag,
         )
-        checksum_key = _sha256_key(os_key, linux_arch)
+        checksum_key = _sha256_key(os_key, arch)
         expected_sha256 = sha256_map.get(checksum_key, "")
 
         download = repository_ctx.download(
@@ -97,19 +139,12 @@ def _hermetic_erlang_repository_impl(repository_ctx):
         if install_result.return_code != 0:
             fail("Erlang/OTP 'Install -minimal' script failed: " + install_result.stderr)
 
-    elif "mac os" in os_name:
-        os_key = "macos"
-        macos_arch = _ARCH.get(arch)
-        if not macos_arch:
-            fail("Unsupported CPU architecture for hermetic Erlang/OTP on macOS: {}".format(arch))
-        os_constraint = "@platforms//os:osx"
-        cpu_constraint = "@platforms//cpu:arm64" if macos_arch == "arm64" else "@platforms//cpu:x86_64"
-
+    else:  # os_key == "macos"
         url = "https://github.com/erlef/otp_builds/releases/download/{tag}/{tag}-macos-{arch}.tar.gz".format(
             tag = otp_tag,
-            arch = macos_arch,
+            arch = arch,
         )
-        checksum_key = _sha256_key(os_key, macos_arch)
+        checksum_key = _sha256_key(os_key, arch)
         expected_sha256 = sha256_map.get(checksum_key, "")
 
         download = repository_ctx.download(
@@ -132,9 +167,6 @@ def _hermetic_erlang_repository_impl(repository_ctx):
         repository_ctx.delete("otp.tar.gz")
 
         otp_root = repository_ctx.path("otp")
-
-    else:
-        fail("Hermetic Erlang/OTP toolchain does not support OS: {}".format(repository_ctx.os.name))
 
     erl_path = _find_executable(repository_ctx, otp_root, "erl")
     erlc_path = _find_executable(repository_ctx, otp_root, "erlc")

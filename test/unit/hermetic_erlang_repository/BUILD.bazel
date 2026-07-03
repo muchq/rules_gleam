@@ -1,0 +1,3 @@
+load(":hermetic_erlang_repository_test.bzl", "hermetic_erlang_repository_test_suite")
+
+hermetic_erlang_repository_test_suite(name = "hermetic_erlang_repository_test_suite")
