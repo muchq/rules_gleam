@@ -17,7 +17,7 @@ bazel_dep(name = "aspect_bazel_lib", version = "2.22.5", dev_dependency = True)
 bazel_dep(name = "buildifier_prebuilt", version = "8.2.1.2", dev_dependency = True)
 
 go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
-go_sdk.download(version = "1.24.7")
+go_sdk.download(version = "1.24.12")
 
 gleam = use_extension("//gleam:extensions.bzl", "gleam")
 gleam.toolchain(version = "1.14.0")
