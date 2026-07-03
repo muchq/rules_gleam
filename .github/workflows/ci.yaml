@@ -69,6 +69,15 @@ jobs:
           grep -q 'srcs = glob(\["src/\*\*/\*.gleam"\])' "$generated"
           grep -q 'gleam_toml = "gleam.toml"' "$generated"
           rm "$generated" # this fixture's BUILD.bazel is generated fresh by each CI run, not checked in
+      - name: Run Bazel Tests - examples/gazelle_smoke Directory
+        working-directory: examples/gazelle_smoke
+        run: |
+          echo "Running tests in examples/gazelle_smoke directory with bzlmod=${{ matrix.bzlmod-enabled }}"
+          if ${{ matrix.bzlmod-enabled }}; then
+            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
+          else
+            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
+          fi
       - name: Run Bazel Tests - examples/smoke Directory
         working-directory: examples/smoke
         run: |

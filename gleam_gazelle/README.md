@@ -35,7 +35,13 @@ Nested Gleam packages (multiple `gleam.toml` files in one directory tree, as in
 `examples/nested_smoke`) and non-`src`/`test` source layouts aren't handled; hand-write the
 raw `gleam_library`/`gleam_binary`/`gleam_test` rules for those instead.
 
+## Usage in a downstream project
+
+See [examples/gazelle_smoke](../examples/gazelle_smoke) for a worked example of wiring this
+extension into a project's own `gazelle_binary`/`gazelle` targets (as opposed to this repo's
+own root [BUILD.bazel](../BUILD.bazel), which wires it in for `rules_gleam`'s own use).
+
 ## Testing
 
 The core logic (`gleam.toml` parsing, rule generation) is covered by ordinary Go tests, runnable
-without Bazel: `go test ./gazelle/...`.
+without Bazel: `go test ./gleam_gazelle/...`.

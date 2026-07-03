@@ -21,8 +21,9 @@ Otherwise later tooling on CI will yell at you about formatting/linting violatio
 
 ## Updating BUILD files
 
-Some targets are generated from sources.
-Currently this is just the `bzl_library` targets.
+Some targets are generated from sources: `bzl_library` targets (from `bazel_skylib_gazelle_plugin`),
+and `gleam_package` targets for any directory containing a `gleam.toml` + `src/**/*.gleam`
+(from `gleam_gazelle`, this repo's own Gazelle language extension).
 Run `bazel run //:gazelle` to keep them up-to-date.
 
 ## Updating generated docs
