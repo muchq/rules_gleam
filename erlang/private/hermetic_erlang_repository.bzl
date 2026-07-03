@@ -36,7 +36,7 @@ def _sha256_key(os_key, arch):
 
 def _find_executable(repository_ctx, root, name):
     result = repository_ctx.execute(["find", str(root), "-type", "f", "-name", name, "-path", "*/bin/" + name])
-    lines = [l for l in result.stdout.strip().split("\n") if l]
+    lines = [line for line in result.stdout.strip().split("\n") if line]
     if result.return_code != 0 or not lines:
         fail((
             "Could not locate '{name}' inside the extracted Erlang/OTP archive under {root}. " +
