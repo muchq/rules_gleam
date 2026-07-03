@@ -23,7 +23,7 @@ These rules are early-stage. In particular:
   the hermetic toolchain, on by default) -- see [examples/standalone_cli](examples/standalone_cli).
   Since `gleam_binary`'s escript is compiled with whichever Erlang/OTP built it (the hermetic
   version by default) but its `#!/usr/bin/env escript` shebang finds `escript` via `PATH` at
-  *run* time, running it on a machine whose Erlang/OTP is meaningfully older can fail with a
+  _run_ time, running it on a machine whose Erlang/OTP is meaningfully older can fail with a
   BEAM-compatibility error -- make sure the two are close enough, or use
   `gleam_standalone_release` instead to sidestep the question entirely.
 
