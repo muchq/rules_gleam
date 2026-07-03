@@ -10,9 +10,10 @@ bazel_dep(name = "platforms", version = "1.0.0")
 gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
 gleam.toolchain(version = "1.14.0")
 
-# Opt into a hermetic, downloaded Erlang/OTP instead of PATH-based discovery -- this is the
-# entire point of this example. sha256 for linux_amd64 (the only platform CI runs on) was
-# pinned from the checksum printed by the first, unverified CI run.
+# Erlang is hermetic by default; this pins a specific otp_version/checksum instead of
+# accepting the built-in default -- that's the whole point of this example. sha256 for
+# linux_amd64 (the only platform CI runs on) was pinned from the checksum printed by the
+# first, unverified CI run.
 gleam.erlang_toolchain(
     otp_version = "27.1.2",
     sha256 = {"linux_amd64": "a3eb9b20fb48017c87b4e2867f64b8dfcfaf66cb8f366e3222c9b113c49ee254"},

@@ -5,12 +5,12 @@ binary that bundles the Erlang/OTP runtime itself -- unlike gleam_binary (escrip
 gleam_release (both of which still shell out to a system Erlang), the machine that *runs*
 the result does not need any Erlang installed at all.
 
-Requires the hermetic Erlang toolchain (gleam.erlang_toolchain(...) in MODULE.bazel): only
-that toolchain exposes a Bazel-visible, bundleable OTP tree (see
-erlang/private/hermetic_erlang_repository.bzl's otp_tree filegroup). local_erlang_repository
-(PATH-based host discovery) has no such tree -- copying an arbitrary host Erlang install's
-files is not reliably relocatable, since many system package managers bake absolute paths
-into generated scripts.
+Requires the hermetic Erlang toolchain, which is on by default: only that toolchain exposes a
+Bazel-visible, bundleable OTP tree (see erlang/private/hermetic_erlang_repository.bzl's
+otp_tree filegroup). If gleam.local_erlang_toolchain() opts back out to PATH-based host
+discovery (erlang/private/local_erlang_repository.bzl), there is no such tree -- copying an
+arbitrary host Erlang install's files is not reliably relocatable, since many system package
+managers bake absolute paths into generated scripts.
 """
 
 load(":gleam_library.bzl", "GleamPackageInfo")
@@ -32,10 +32,11 @@ def _gleam_standalone_release_impl(ctx):
     otp_tree = getattr(erlang_toolchain, "otp_tree", None)
     if not otp_tree:
         fail((
-            "gleam_standalone_release '{label}' requires the hermetic Erlang toolchain -- " +
-            "add gleam.erlang_toolchain(otp_version = \"...\") to your MODULE.bazel. The " +
-            "currently configured Erlang toolchain has no bundleable OTP tree (are you using " +
-            "the default PATH-based local_erlang_repository instead?)."
+            "gleam_standalone_release '{label}' requires the hermetic Erlang toolchain, which " +
+            "is on by default -- but this build has no bundleable OTP tree, which means " +
+            "gleam.local_erlang_toolchain() must be set in your MODULE.bazel, opting back out " +
+            "to PATH-based discovery (erlang/private/local_erlang_repository.bzl). Remove that " +
+            "call to use gleam_standalone_release."
         ).format(label = ctx.label))
 
     otp_tree_files = otp_tree[DefaultInfo].files.to_list()
@@ -128,10 +129,11 @@ bundles the Erlang/OTP runtime itself: the machine that *runs* the result does n
 Erlang installed at all, unlike `gleam_binary` (escript) or `gleam_release`, both of which
 still shell out to a system Erlang.
 
-Requires the hermetic Erlang toolchain (`gleam.erlang_toolchain(...)` in `MODULE.bazel`) --
-fails with an actionable error otherwise. This is the recommended, easiest-to-get-right way
-to ship a portable Gleam CLI tool: build once, copy the resulting runfiles tree to any
-machine with the same OS/CPU architecture, and run it with no setup required.
+Requires the hermetic Erlang toolchain, which is on by default -- fails with an actionable
+error if `gleam.local_erlang_toolchain()` has opted back out to PATH-based discovery. This is
+the recommended, easiest-to-get-right way to ship a portable Gleam CLI tool: build once, copy
+the resulting runfiles tree to any machine with the same OS/CPU architecture, and run it with
+no setup required.
 
 Like `gleam_release`, this does not attempt to start the package as an OTP application (no
 `application:ensure_all_started` call) -- call it yourself from `entry_module` if needed.

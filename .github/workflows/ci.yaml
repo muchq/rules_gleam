@@ -28,6 +28,9 @@ jobs:
         uses: actions/checkout@v6
       - name: Set up Erlang
         run: |
+          # Erlang is hermetic by default now, so most examples download their own OTP release
+          # and never touch this. Only examples/nested_smoke opts out via
+          # gleam.local_erlang_toolchain(), so it still needs a system Erlang on PATH.
           echo "Installing Erlang..."
           # Update package lists to avoid 404 errors for outdated packages
           sudo apt-get update -y
@@ -123,6 +126,15 @@ jobs:
           else
             bazel build --noenable_bzlmod --enable_workspace //...
           fi
+          # The escript's shebang (`#!/usr/bin/env escript`) looks up `escript` on PATH at run
+          # time, separately from whichever Erlang/OTP built it -- since Erlang is hermetic by
+          # default now, that's the downloaded OTP, not the system one the "Set up Erlang" step
+          # installs (only needed by examples/nested_smoke's explicit PATH-based opt-out).
+          # Prepend the hermetic toolchain's own bin/ so the versions actually match.
+          hermetic_bin="$(bazel info output_base)/external/muchq_rules_gleam++gleam+local_config_erlang/otp/bin"
+          if [[ -d "$hermetic_bin" ]]; then
+            export PATH="$hermetic_bin:$PATH"
+          fi
           # Verify the binary is executable and runs
           ./bazel-bin/hello_world
       - name: Run Bazel Build - examples/standalone_cli Directory
@@ -137,7 +149,7 @@ jobs:
           # Prove this binary bundles its own Erlang/OTP runtime: run it with a PATH that has
           # basic coreutils (which erl's own wrapper script shells out to internally) but
           # deliberately excludes /usr/bin and /usr/lib/erlang, where the "Set up Erlang" step
-          # earlier installed one system-wide for the other examples -- so no system `erl`
+          # earlier installed one system-wide (for examples/nested_smoke) -- so no system `erl`
           # could possibly be found via PATH lookup.
           mkdir -p /tmp/no_erlang_path
           for tool in dirname basename readlink cat; do

@@ -7,19 +7,25 @@ Erlang/OTP target.
 
 These rules are early-stage. In particular:
 
-- **Erlang is not hermetic by default.** The Erlang/OTP toolchain is discovered on the host (via
-  `PATH`), not downloaded by Bazel, so builds depend on whatever Erlang/OTP version is installed
-  where Bazel runs. **The hermetic toolchain is recommended and is the easiest path to a
-  reproducible, portable build**: add `gleam.erlang_toolchain(otp_version = "27.1.2")` to your
-  `MODULE.bazel` (see [examples/hermetic_erlang](examples/hermetic_erlang)) and Bazel downloads
-  a prebuilt OTP release instead of relying on the host; it currently supports Linux
-  (glibc-linked, tied to a specific distro/version tag) and macOS, but not Windows.
+- **Erlang is hermetic by default.** Bazel downloads a prebuilt OTP release and uses it
+  directly, rather than discovering Erlang/OTP on the host's `PATH`; it currently supports
+  Linux (glibc-linked, tied to a specific distro/version tag) and macOS, but not Windows. Pin a
+  specific `otp_version`/checksum with `gleam.erlang_toolchain(otp_version = "27.1.2")` in your
+  `MODULE.bazel` (see [examples/hermetic_erlang](examples/hermetic_erlang)), or opt back out to
+  PATH-based host discovery entirely with `gleam.local_erlang_toolchain()` (see
+  [examples/nested_smoke](examples/nested_smoke)) if hermetic downloads aren't practical in
+  your build environment.
 - **Test coverage is currently limited to basic end-to-end examples** (see `examples/`) rather
   than a full unit test suite for the rule implementations themselves.
 - `gleam_binary` (escript) and `gleam_release` (runfiles-tree) both still require an Erlang
   runtime to be present on the machine that _runs_ the resulting executable. For a fully
   self-contained binary needing no host Erlang at all, use `gleam_standalone_release` (requires
-  the hermetic toolchain above) -- see [examples/standalone_cli](examples/standalone_cli).
+  the hermetic toolchain, on by default) -- see [examples/standalone_cli](examples/standalone_cli).
+  Since `gleam_binary`'s escript is compiled with whichever Erlang/OTP built it (the hermetic
+  version by default) but its `#!/usr/bin/env escript` shebang finds `escript` via `PATH` at
+  _run_ time, running it on a machine whose Erlang/OTP is meaningfully older can fail with a
+  BEAM-compatibility error -- make sure the two are close enough, or use
+  `gleam_standalone_release` instead to sidestep the question entirely.
 
 Contributions and bug reports are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
