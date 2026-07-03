@@ -183,7 +183,7 @@ gleam_library(
     name = "{name}",
     data = ["gleam.toml"],
     package_name = "{name}",
-    srcs = glob(["src/**/*.gleam", "src/**/*.erl", "src/**/*.mjs"]),
+    srcs = glob(["src/**/*.gleam", "src/**/*.erl", "src/**/*.mjs"], allow_empty = True),
     deps = [{deps}],
     visibility = ["//visibility:public"],
 )
