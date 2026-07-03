@@ -49,6 +49,14 @@ jobs:
           key: bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-bzlmod-${{ matrix.bzlmod-enabled }}-${{ hashFiles('**/MODULE.bazel', '**/WORKSPACE') }}
           restore-keys: |
             bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-bzlmod-${{ matrix.bzlmod-enabled }}-
+      - name: Run Bazel Unit Tests - test/unit (Starlark analysistest/unittest)
+        run: |
+          echo "Running Starlark unit tests for private rule/module-extension helpers"
+          if ${{ matrix.bzlmod-enabled }}; then
+            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //test/...
+          else
+            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //test/...
+          fi
       - name: Run Bazel Tests - gleam_gazelle Directory (Gazelle language extension)
         run: |
           echo "Running the gleam Gazelle language extension's Go unit tests"
@@ -161,6 +169,42 @@ jobs:
           else
             bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
           fi
+      - name: Run Bazel Build - examples/expect_fail Directory
+        working-directory: examples/expect_fail
+        run: |
+          echo "Building examples/expect_fail directory with bzlmod=${{ matrix.bzlmod-enabled }}"
+          if ${{ matrix.bzlmod-enabled }}; then
+            bazel build --enable_bzlmod --noenable_workspace //...
+          else
+            bazel build --noenable_bzlmod --enable_workspace //...
+          fi
+      - name: Verify gleam_test/gleam_format_test detect real failures (examples/expect_fail)
+        working-directory: examples/expect_fail
+        run: |
+          # Every other example only shows the happy path. These two targets are deliberately
+          # broken (see examples/expect_fail/README.md), so `bazel test` on them must fail --
+          # if either one unexpectedly passes, gleam_test/gleam_format_test have stopped
+          # actually detecting failures, which every other example in this repo would miss.
+          if ${{ matrix.bzlmod-enabled }}; then
+            if bazel test --enable_bzlmod --noenable_workspace --test_output=errors //:expect_fail_test; then
+              echo "FAIL: //:expect_fail_test is deliberately broken but bazel test reported success" >&2
+              exit 1
+            fi
+            if bazel test --enable_bzlmod --noenable_workspace --test_output=errors //:expect_fail_format_test; then
+              echo "FAIL: //:expect_fail_format_test is deliberately misformatted but bazel test reported success" >&2
+              exit 1
+            fi
+          else
+            if bazel test --noenable_bzlmod --enable_workspace --test_output=errors //:expect_fail_test; then
+              echo "FAIL: //:expect_fail_test is deliberately broken but bazel test reported success" >&2
+              exit 1
+            fi
+            if bazel test --noenable_bzlmod --enable_workspace --test_output=errors //:expect_fail_format_test; then
+              echo "FAIL: //:expect_fail_format_test is deliberately misformatted but bazel test reported success" >&2
+              exit 1
+            fi
+          fi
+          echo "PASS: gleam_test and gleam_format_test both correctly detected their intentionally-broken fixtures"
       - name: Run Bazel Build - examples/hello_world Directory
         working-directory: examples/hello_world
         run: |

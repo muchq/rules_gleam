@@ -9,7 +9,7 @@ runtime data available alongside the compiled code (see gleam_binary for the sin
 escript alternative, better suited to portable CLI tools that don't need bundled data).
 """
 
-load(":erlang_otp_tree.bzl", "find_erl_file")
+load(":erlang_otp_tree.bzl", "resolve_erl_invocation")
 load(":gleam_library.bzl", "GleamPackageInfo")
 
 def _gleam_release_impl(ctx):
@@ -25,24 +25,14 @@ def _gleam_release_impl(ctx):
 
     ws_name = ctx.workspace_name
     otp_tree = getattr(erlang_toolchain, "otp_tree", None)
-    extra_runfiles = []
+    otp_tree_files = otp_tree[DefaultInfo].files.to_list() if otp_tree else []
 
-    if otp_tree:
-        # Hermetic toolchain: bundle its OTP tree so this release is genuinely portable to any
-        # machine with the same OS/CPU architecture. The toolchain's own erl_path_str is an
-        # absolute path into Bazel's own cache (e.g. ~/.cache/bazel/.../external/...), which
-        # is *not* valid on a different machine -- baking that in would produce an artifact
-        # that only ever runs on the machine that built it.
-        otp_tree_files = otp_tree[DefaultInfo].files.to_list()
-        erl_file = find_erl_file(otp_tree_files, ctx.label)
-        erl_invocation = '"$RF/{ws}/{path}"'.format(ws = ws_name, path = erl_file.short_path)
-        extra_runfiles = otp_tree_files
-    else:
-        # Local (PATH-based) toolchain: there's no bundleable tree, so fall back to a plain
-        # PATH lookup at run time -- the same portability model as gleam_binary's escript.
-        # Whatever Erlang built this must also be reasonably compatible with whatever's on
-        # PATH wherever this release actually runs.
-        erl_invocation = "erl"
+    # See resolve_erl_invocation's docstring for why the hermetic toolchain's own erl_path_str
+    # can't be used directly here: it's an absolute path into Bazel's own cache, not valid on
+    # any machine but the one that built this release. This branch (and its counterpart, the
+    # PATH-based fallback when the toolchain has no bundleable otp_tree) is covered directly by
+    # test/unit/erlang_otp_tree, without needing a full toolchain-dependent build to exercise.
+    erl_invocation, extra_runfiles = resolve_erl_invocation(otp_tree_files, ws_name, ctx.label)
 
     launcher = ctx.actions.declare_file(ctx.label.name)
 
