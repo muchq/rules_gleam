@@ -15,14 +15,13 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 jobs:
   test:
-    name: Test (Bazel ${{ matrix.bazel-version }}, Bzlmod ${{ matrix.bzlmod-enabled }}, OS ${{ matrix.os }})
+    name: Test (Bazel ${{ matrix.bazel-version }}, OS ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        bazel-version: ["8.x", "9.x"] # Specify desired Bazel versions
-        bzlmod-enabled: [true]
+        bazel-version: ["9.x"] # bzlmod is the only supported dependency mode; see .bazelrc
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -46,29 +45,21 @@ jobs:
           path: |
             ~/.cache/bazel
             ~/.cache/bazel-repo
-          key: bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-bzlmod-${{ matrix.bzlmod-enabled }}-${{ hashFiles('**/MODULE.bazel', '**/WORKSPACE') }}
+          key: bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-${{ hashFiles('**/MODULE.bazel') }}
           restore-keys: |
-            bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-bzlmod-${{ matrix.bzlmod-enabled }}-
+            bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-
       - name: Run Bazel Unit Tests - test/unit (Starlark analysistest/unittest)
         run: |
           echo "Running Starlark unit tests for private rule/module-extension helpers"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //test/...
-          else
-            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //test/...
-          fi
+          bazel test --test_output=errors //test/...
       - name: Run Bazel Tests - gleam_gazelle Directory (Gazelle language extension)
         run: |
           echo "Running the gleam Gazelle language extension's Go unit tests"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //gleam_gazelle/...
-          else
-            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //gleam_gazelle/...
-          fi
+          bazel test --test_output=errors //gleam_gazelle/...
       - name: Verify gazelle generates a BUILD file for a fresh Gleam package
         run: |
           echo "Running bazel run //:gazelle against gleam_gazelle/testdata/sample_package (no BUILD.bazel checked in)"
-          bazel run --enable_bzlmod --noenable_workspace //:gazelle -- gleam_gazelle/testdata/sample_package
+          bazel run //:gazelle -- gleam_gazelle/testdata/sample_package
           generated="gleam_gazelle/testdata/sample_package/BUILD.bazel"
           if [[ ! -f "$generated" ]]; then
             echo "ERROR: gazelle did not generate $generated" >&2
@@ -83,39 +74,23 @@ jobs:
       - name: Run Bazel Tests - examples/gazelle_smoke Directory
         working-directory: examples/gazelle_smoke
         run: |
-          echo "Running tests in examples/gazelle_smoke directory with bzlmod=${{ matrix.bzlmod-enabled }}"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
-          else
-            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
-          fi
+          echo "Running tests in examples/gazelle_smoke directory"
+          bazel test --test_output=errors //...
       - name: Run Bazel Tests - examples/smoke Directory
         working-directory: examples/smoke
         run: |
-          echo "Running tests in examples/smoke directory with bzlmod=${{ matrix.bzlmod-enabled }}"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
-          else
-            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
-          fi
+          echo "Running tests in examples/smoke directory"
+          bazel test --test_output=errors //...
       - name: Run Bazel Tests - examples/nested_smoke Directory
         working-directory: examples/nested_smoke
         run: |
-          echo "Running tests in examples/nested_smoke directory with bzlmod=${{ matrix.bzlmod-enabled }}"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
-          else
-            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
-          fi
+          echo "Running tests in examples/nested_smoke directory"
+          bazel test --test_output=errors //...
       - name: Run Bazel Tests - examples/web_service Directory
         working-directory: examples/web_service
         run: |
-          echo "Running tests in examples/web_service directory with bzlmod=${{ matrix.bzlmod-enabled }}"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
-          else
-            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
-          fi
+          echo "Running tests in examples/web_service directory"
+          bazel test --test_output=errors //...
       - name: Verify examples/web_service's gleam_release on a fresh, Erlang-free machine (Docker)
         working-directory: examples/web_service
         run: |
@@ -123,11 +98,7 @@ jobs:
           # hermetic toolchain's OTP tree now, so it should be just as portable. Prove it on
           # a genuinely fresh Docker container with no Erlang installed, not just this
           # machine with PATH tricks.
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel build --enable_bzlmod --noenable_workspace //:web_service_bin
-          else
-            bazel build --noenable_bzlmod --enable_workspace //:web_service_bin
-          fi
+          bazel build //:web_service_bin
           rm -rf /tmp/portable_web_service
           mkdir -p /tmp/portable_web_service
           cp -L bazel-bin/web_service_bin /tmp/portable_web_service/web_service_bin
@@ -163,21 +134,13 @@ jobs:
       - name: Run Bazel Tests - examples/hermetic_erlang Directory
         working-directory: examples/hermetic_erlang
         run: |
-          echo "Running tests in examples/hermetic_erlang directory with bzlmod=${{ matrix.bzlmod-enabled }}"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel test --enable_bzlmod --noenable_workspace --test_output=errors //...
-          else
-            bazel test --noenable_bzlmod --enable_workspace --test_output=errors //...
-          fi
+          echo "Running tests in examples/hermetic_erlang directory"
+          bazel test --test_output=errors //...
       - name: Run Bazel Build - examples/expect_fail Directory
         working-directory: examples/expect_fail
         run: |
-          echo "Building examples/expect_fail directory with bzlmod=${{ matrix.bzlmod-enabled }}"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel build --enable_bzlmod --noenable_workspace //...
-          else
-            bazel build --noenable_bzlmod --enable_workspace //...
-          fi
+          echo "Building examples/expect_fail directory"
+          bazel build //...
       - name: Verify gleam_test/gleam_format_test detect real failures (examples/expect_fail)
         working-directory: examples/expect_fail
         run: |
@@ -185,35 +148,20 @@ jobs:
           # broken (see examples/expect_fail/README.md), so `bazel test` on them must fail --
           # if either one unexpectedly passes, gleam_test/gleam_format_test have stopped
           # actually detecting failures, which every other example in this repo would miss.
-          if ${{ matrix.bzlmod-enabled }}; then
-            if bazel test --enable_bzlmod --noenable_workspace --test_output=errors //:expect_fail_test; then
-              echo "FAIL: //:expect_fail_test is deliberately broken but bazel test reported success" >&2
-              exit 1
-            fi
-            if bazel test --enable_bzlmod --noenable_workspace --test_output=errors //:expect_fail_format_test; then
-              echo "FAIL: //:expect_fail_format_test is deliberately misformatted but bazel test reported success" >&2
-              exit 1
-            fi
-          else
-            if bazel test --noenable_bzlmod --enable_workspace --test_output=errors //:expect_fail_test; then
-              echo "FAIL: //:expect_fail_test is deliberately broken but bazel test reported success" >&2
-              exit 1
-            fi
-            if bazel test --noenable_bzlmod --enable_workspace --test_output=errors //:expect_fail_format_test; then
-              echo "FAIL: //:expect_fail_format_test is deliberately misformatted but bazel test reported success" >&2
-              exit 1
-            fi
+          if bazel test --test_output=errors //:expect_fail_test; then
+            echo "FAIL: //:expect_fail_test is deliberately broken but bazel test reported success" >&2
+            exit 1
+          fi
+          if bazel test --test_output=errors //:expect_fail_format_test; then
+            echo "FAIL: //:expect_fail_format_test is deliberately misformatted but bazel test reported success" >&2
+            exit 1
           fi
           echo "PASS: gleam_test and gleam_format_test both correctly detected their intentionally-broken fixtures"
       - name: Run Bazel Build - examples/hello_world Directory
         working-directory: examples/hello_world
         run: |
-          echo "Building examples/hello_world directory with bzlmod=${{ matrix.bzlmod-enabled }}"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel build --enable_bzlmod --noenable_workspace //...
-          else
-            bazel build --noenable_bzlmod --enable_workspace //...
-          fi
+          echo "Building examples/hello_world directory"
+          bazel build //...
           # The escript's shebang (`#!/usr/bin/env escript`) looks up `escript` on PATH at run
           # time, separately from whichever Erlang/OTP built it -- since Erlang is hermetic by
           # default now, that's the downloaded OTP, not the system one the "Set up Erlang" step
@@ -228,12 +176,8 @@ jobs:
       - name: Run Bazel Build - examples/standalone_cli Directory
         working-directory: examples/standalone_cli
         run: |
-          echo "Building examples/standalone_cli directory with bzlmod=${{ matrix.bzlmod-enabled }}"
-          if ${{ matrix.bzlmod-enabled }}; then
-            bazel build --enable_bzlmod --noenable_workspace //...
-          else
-            bazel build --noenable_bzlmod --enable_workspace //...
-          fi
+          echo "Building examples/standalone_cli directory"
+          bazel build //...
       - name: Verify examples/standalone_cli on a fresh, Erlang-free machine (Docker)
         working-directory: examples/standalone_cli
         run: |

@@ -2,8 +2,9 @@
 # Take care to document any settings that you expect users to apply.
 # Settings that apply only to CI are in .github/workflows/ci.bazelrc
 
-# Required until this is the default; expected in Bazel 7
-common --enable_bzlmod
+# Bzlmod is the only supported dependency mode (WORKSPACE-based setup is not supported); as of
+# Bazel 9 this is no longer configurable at all -- --enable_bzlmod/--enable_workspace were
+# removed, so no flag is needed or accepted here.
 
 # Don’t want to push a rules author to update their deps if not needed.
 # https://bazel.build/reference/command-line-reference#flag--check_direct_dependencies

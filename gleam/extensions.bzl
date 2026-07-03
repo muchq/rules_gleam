@@ -221,7 +221,6 @@ def _toolchain_extension(module_ctx):
         gleam_register_toolchains(
             name = name,
             gleam_version = selected,
-            register = False,
         )
 
     # Register the Erlang toolchain repository. Hermetic by default (either the built-in
