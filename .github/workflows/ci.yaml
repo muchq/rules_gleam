@@ -24,38 +24,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-      - name: DEBUG - probe candidate gleam/OTP versions
-        if: runner.os == 'Linux'
-        run: |
-          echo "--- OTP candidates: hex.pm (linux/amd64/ubuntu-22.04) ---"
-          for v in 27.3 28.0 28.1 29.0 29.0.2; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" -L "https://builds.hex.pm/builds/otp/amd64/ubuntu-22.04/OTP-$v.tar.gz")
-            echo "OTP-$v: $code"
-          done
-          echo "--- OTP candidates: erlef/otp_builds (macos/arm64) ---"
-          for v in 27.3 28.0 28.1 29.0 29.0.2; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" -L "https://github.com/erlef/otp_builds/releases/download/OTP-$v/OTP-$v-macos-arm64.tar.gz")
-            echo "OTP-$v: $code"
-          done
-          echo "--- gleam 1.17.0 release asset checksums ---"
-          for platform in x86_64-apple-darwin aarch64-apple-darwin x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
-            url="https://github.com/gleam-lang/gleam/releases/download/v1.17.0/gleam-v1.17.0-$platform.tar.gz"
-            code=$(curl -s -o /tmp/gleam_asset -w "%{http_code}" -L "$url")
-            if [ "$code" = "200" ]; then
-              hash=$(openssl dgst -sha256 -binary /tmp/gleam_asset | openssl base64 -A)
-              echo "$platform: sha256-$hash"
-            else
-              echo "$platform: HTTP $code"
-            fi
-          done
-          url="https://github.com/gleam-lang/gleam/releases/download/v1.17.0/gleam-v1.17.0-x86_64-pc-windows-msvc.zip"
-          code=$(curl -s -o /tmp/gleam_asset -w "%{http_code}" -L "$url")
-          if [ "$code" = "200" ]; then
-            hash=$(openssl dgst -sha256 -binary /tmp/gleam_asset | openssl base64 -A)
-            echo "x86_64-pc-windows-msvc: sha256-$hash"
-          else
-            echo "x86_64-pc-windows-msvc: HTTP $code"
-          fi
       - name: Set up Erlang (Linux)
         if: runner.os == 'Linux'
         run: |

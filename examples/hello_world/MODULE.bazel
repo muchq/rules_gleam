@@ -8,7 +8,7 @@ bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.0.0")
 
 gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
-gleam.toolchain(version = "1.14.0")
+gleam.toolchain(version = "1.17.0")
 gleam.hex_package(
     name = "gleam_stdlib",
     sha256 = "621d600bb134bc239cb2537630899817b1a42e60a1d46c5e9f3fae39f88c800b",

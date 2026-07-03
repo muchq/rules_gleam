@@ -9,7 +9,7 @@ bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 
 gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
-gleam.toolchain(version = "1.14.0")
+gleam.toolchain(version = "1.17.0")
 
 # mist (a Gleam HTTP server) and its full transitive Hex dependency graph -- parsed straight
 # from this project's own manifest.toml (the lockfile `gleam deps download` produces) instead

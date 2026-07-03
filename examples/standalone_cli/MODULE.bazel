@@ -8,7 +8,7 @@ bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.0.0")
 
 gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
-gleam.toolchain(version = "1.14.0")
+gleam.toolchain(version = "1.17.0")
 
 # gleam_standalone_release requires the hermetic toolchain, which is on by default -- no
 # gleam.erlang_toolchain(...) call needed here at all. See examples/hermetic_erlang if you
