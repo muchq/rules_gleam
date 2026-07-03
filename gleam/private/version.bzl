@@ -5,6 +5,8 @@ itself isn't testable via analysistest (which only exercises rule() targets reso
 analysis phase), but a plain Starlark function like this one is -- see test/unit/version.
 """
 
+visibility(["//gleam/...", "//test/..."])
+
 def parse_version(version):
     """Parses a dotted version string into a list of ints for numeric comparison.
 

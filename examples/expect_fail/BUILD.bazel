@@ -13,17 +13,17 @@ load("@rules_gleam//gleam:defs.bzl", "gleam_format_test", "gleam_library", "glea
 
 gleam_library(
     name = "expect_fail_fixture_lib",
+    package_name = "expect_fail_fixture",
     srcs = glob(["src/**/*.gleam"]),
     data = ["gleam.toml"],
-    package_name = "expect_fail_fixture",
     deps = ["@gleam_packages//:gleam_stdlib"],
 )
 
 gleam_test(
     name = "expect_fail_test",
+    package_name = "expect_fail_fixture",
     srcs = glob(["src/**/*.gleam"]),
     data = ["gleam.toml"],
-    package_name = "expect_fail_fixture",
     test_srcs = glob(["test/**/*.gleam"]),
     deps = [
         "@gleam_packages//:gleam_stdlib",

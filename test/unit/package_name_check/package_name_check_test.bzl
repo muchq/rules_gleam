@@ -4,8 +4,7 @@ gleam_package_name_check has no toolchain dependency, so its registered action c
 inspected directly via analysistest without needing a real Gleam/Erlang toolchain build.
 """
 
-load("@bazel_skylib//lib:analysistest.bzl", "analysistest")
-load("@bazel_skylib//lib:unittest.bzl", "asserts")
+load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
 load("//gleam/private:package_name_check.bzl", "gleam_package_name_check")
 
 def _registers_validation_action_test_impl(ctx):

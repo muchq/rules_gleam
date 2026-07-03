@@ -6,8 +6,7 @@ runfiles-relative erl path and a plain PATH lookup, and that decision needs to k
 right without requiring a full toolchain-dependent build to check it.
 """
 
-load("@bazel_skylib//lib:analysistest.bzl", "analysistest")
-load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
+load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//gleam/private:erlang_otp_tree.bzl", "find_erl_file", "resolve_erl_invocation")
 
 def _fake_file(short_path):

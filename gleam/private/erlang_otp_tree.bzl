@@ -5,6 +5,8 @@ Used by gleam_release (when the hermetic toolchain is active) and gleam_standalo
 filegroup -- see erlang/private/hermetic_erlang_repository.bzl.
 """
 
+visibility(["//gleam/...", "//test/..."])
+
 def find_erl_file(otp_tree_files, label):
     """Returns the `otp/bin/erl` File within a hermetic toolchain's otp_tree filegroup files.
 
