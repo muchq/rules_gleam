@@ -39,6 +39,16 @@ project's manifest.toml lockfile:
 ```starlark
 gleam.hex_manifest(manifest = "//path/to:manifest.toml")
 ```
+
+A `@<name>_host` repository (e.g. `@gleam_host` for the default toolchain name) is always
+created alongside the per-platform ones, exposing a directly `bazel run`-able `gleam` CLI for
+whatever platform Bazel happens to be running on, without needing to know its OS/arch string:
+```starlark
+use_repo(gleam, "gleam_host", ...)
+```
+```shell
+bazel run @gleam_host//:gleam -- format
+```
 """
 
 load("//erlang/private:hermetic_erlang_repository.bzl", "hermetic_erlang_repository")  # buildifier: disable=bzl-visibility

@@ -66,6 +66,15 @@ jobs:
         run: |
           echo "Running the gleam Gazelle language extension's Go unit tests"
           bazel test --test_output=errors //gleam_gazelle/...
+      - name: Verify @gleam_host//:gleam is directly runnable
+        run: |
+          # gleam_host_repo (gleam/private/host_repo.bzl) detects the host platform without
+          # needing to know its OS/arch string; prove the resulting binary is real and matches
+          # the pinned toolchain version, not just that the target resolves.
+          echo "Running bazel run @gleam_host//:gleam -- --version"
+          output="$(bazel run @gleam_host//:gleam -- --version)"
+          echo "$output"
+          echo "$output" | grep -q "gleam 1.17.0"
       - name: Verify gazelle generates a BUILD file for a fresh Gleam package
         run: |
           echo "Running bazel run //:gazelle against gleam_gazelle/testdata/sample_package (no BUILD.bazel checked in)"

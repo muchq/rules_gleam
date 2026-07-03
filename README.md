@@ -174,3 +174,7 @@ extension turns any `gleam.toml` + `src/**/*.gleam` directory into a `gleam_pack
 Wire it into your own `gazelle_binary`'s `languages` list alongside `@rules_gleam//gleam_gazelle`
 and run `bazel run //:gazelle` -- see [examples/gazelle_smoke](examples/gazelle_smoke) for a
 worked example of wiring this into a downstream project's own `MODULE.bazel`/`BUILD.bazel`.
+
+To run the `gleam` CLI itself (e.g. `gleam format`) without knowing your machine's OS/arch
+string, add `"gleam_host"` to the extension's `use_repo(...)` call and run
+`bazel run @gleam_host//:gleam -- format`.

@@ -1,0 +1,3 @@
+load(":host_repo_test.bzl", "host_repo_test_suite")
+
+host_repo_test_suite(name = "host_repo_test_suite")
