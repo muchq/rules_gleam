@@ -29,14 +29,26 @@ bzl_library(
     name = "gleam_release",
     srcs = ["gleam_release.bzl"],
     visibility = ["//gleam:__subpackages__"],
-    deps = [":gleam_library"],
+    deps = [
+        ":erlang_otp_tree",
+        ":gleam_library",
+    ],
 )
 
 bzl_library(
     name = "gleam_standalone_release",
     srcs = ["gleam_standalone_release.bzl"],
     visibility = ["//gleam:__subpackages__"],
-    deps = [":gleam_library"],
+    deps = [
+        ":erlang_otp_tree",
+        ":gleam_library",
+    ],
+)
+
+bzl_library(
+    name = "erlang_otp_tree",
+    srcs = ["erlang_otp_tree.bzl"],
+    visibility = ["//gleam:__subpackages__"],
 )
 
 bzl_library(

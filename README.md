@@ -17,15 +17,18 @@ These rules are early-stage. In particular:
   your build environment.
 - **Test coverage is currently limited to basic end-to-end examples** (see `examples/`) rather
   than a full unit test suite for the rule implementations themselves.
-- `gleam_binary` (escript) and `gleam_release` (runfiles-tree) both still require an Erlang
-  runtime to be present on the machine that _runs_ the resulting executable. For a fully
-  self-contained binary needing no host Erlang at all, use `gleam_standalone_release` (requires
-  the hermetic toolchain, on by default) -- see [examples/standalone_cli](examples/standalone_cli).
-  Since `gleam_binary`'s escript is compiled with whichever Erlang/OTP built it (the hermetic
-  version by default) but its `#!/usr/bin/env escript` shebang finds `escript` via `PATH` at
-  _run_ time, running it on a machine whose Erlang/OTP is meaningfully older can fail with a
-  BEAM-compatibility error -- make sure the two are close enough, or use
-  `gleam_standalone_release` instead to sidestep the question entirely.
+- `gleam_binary` (escript) always requires a compatible Erlang runtime to be present on the
+  machine that _runs_ the resulting executable: its `#!/usr/bin/env escript` shebang finds
+  `escript` via `PATH` at _run_ time, separately from whichever Erlang/OTP built it (the
+  hermetic version by default), so running it on a machine whose Erlang/OTP is meaningfully
+  older can fail with a BEAM-compatibility error. `gleam_release` and `gleam_standalone_release`
+  don't have this problem under the hermetic toolchain (the default): both bundle the
+  toolchain's own OTP tree into their runfiles, so the result is genuinely portable to any
+  machine with the same OS/CPU architecture, no Erlang installed there required.
+  `gleam_standalone_release` requires the hermetic toolchain outright (fails otherwise);
+  `gleam_release` falls back to a PATH lookup (same caveat as `gleam_binary`) if
+  `gleam.local_erlang_toolchain()` opts out of it. See
+  [examples/standalone_cli](examples/standalone_cli).
 
 Contributions and bug reports are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
 
