@@ -20,11 +20,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-      - name: Set up Erlang
+      - name: Set up Erlang (Linux)
+        if: runner.os == 'Linux'
         run: |
           # Erlang is hermetic by default now, so most examples download their own OTP release
           # and never touch this. Only examples/nested_smoke opts out via
@@ -34,6 +35,12 @@ jobs:
           sudo apt-get update -y
           # Install Erlang with --fix-missing to handle potential fetch errors
           sudo apt-get install -y --fix-missing erlang
+      - name: Set up Erlang (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # Same rationale as the Linux step above (only examples/nested_smoke needs this).
+          echo "Installing Erlang..."
+          brew install erlang
       - name: Set up Bazel
         uses: bazel-contrib/setup-bazel@0.18.0
         # No version-related input: this action's valid inputs are bazelisk-version (which
@@ -95,6 +102,10 @@ jobs:
           echo "Running tests in examples/web_service directory"
           bazel test --test_output=errors //...
       - name: Verify examples/web_service's gleam_release on a fresh, Erlang-free machine (Docker)
+        # GitHub's macOS runners can't run Linux containers, so this Docker-based proof only
+        # runs on Linux. The build+test steps above still cover macOS; they just can't prove
+        # portability to a machine that never had Erlang installed the same way Docker does.
+        if: runner.os == 'Linux'
         working-directory: examples/web_service
         run: |
           # Same rationale as examples/standalone_cli: gleam_release also bundles the
@@ -182,6 +193,8 @@ jobs:
           echo "Building examples/standalone_cli directory"
           bazel build //...
       - name: Verify examples/standalone_cli on a fresh, Erlang-free machine (Docker)
+        # Same rationale as examples/web_service's Docker step above: not available on macOS.
+        if: runner.os == 'Linux'
         working-directory: examples/standalone_cli
         run: |
           # A same-machine PATH trick can't fully rule out accidentally finding a system
