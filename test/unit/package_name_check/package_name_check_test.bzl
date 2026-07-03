@@ -5,7 +5,7 @@ inspected directly via analysistest without needing a real Gleam/Erlang toolchai
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts")
-load("//gleam/private:package_name_check.bzl", "gleam_package_name_check")
+load("//gleam/private:package_name_check.bzl", "gleam_package_name_check")  # buildifier: disable=bzl-visibility
 
 def _registers_validation_action_test_impl(ctx):
     env = analysistest.begin(ctx)

@@ -1,7 +1,7 @@
 """Unit tests for gleam/private/manifest_toml.bzl's parse_manifest_toml."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//gleam/private:manifest_toml.bzl", "parse_manifest_toml")
+load("//gleam/private:manifest_toml.bzl", "parse_manifest_toml")  # buildifier: disable=bzl-visibility
 
 _SAMPLE = """
 packages = [

@@ -1,7 +1,7 @@
 """Unit tests for gleam/private/version.bzl's parse_version."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//gleam/private:version.bzl", "parse_version")
+load("//gleam/private:version.bzl", "parse_version")  # buildifier: disable=bzl-visibility
 
 def _parses_simple_version_test_impl(ctx):
     env = unittest.begin(ctx)

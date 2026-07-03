@@ -7,7 +7,7 @@ right without requiring a full toolchain-dependent build to check it.
 """
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
-load("//gleam/private:erlang_otp_tree.bzl", "find_erl_file", "resolve_erl_invocation")
+load("//gleam/private:erlang_otp_tree.bzl", "find_erl_file", "resolve_erl_invocation")  # buildifier: disable=bzl-visibility
 
 def _fake_file(short_path):
     # find_erl_file and resolve_erl_invocation only ever read `.short_path` off these, so a
@@ -52,8 +52,9 @@ def _bundles_runfiles_relative_path_when_otp_tree_present_test_impl(ctx):
 
 bundles_runfiles_relative_path_when_otp_tree_present_test = unittest.make(_bundles_runfiles_relative_path_when_otp_tree_present_test_impl)
 
-# ---- analysistest.expect_failure: proves find_erl_file's fail() actually fires, through a
-# real rule and real Bazel File objects (rather than the fakes above). ----
+# ---- asserts.expect_failure (via analysistest.make(expect_failure = True)): proves
+# find_erl_file's fail() actually fires, through a real rule and real Bazel File objects
+# (rather than the fakes above). ----
 
 def _lookup_impl(ctx):
     find_erl_file(ctx.files.srcs, ctx.label)
@@ -66,7 +67,7 @@ _lookup_rule = rule(
 
 def _fails_when_erl_absent_test_impl(ctx):
     env = analysistest.begin(ctx)
-    analysistest.expect_failure(env, "could not find 'otp/bin/erl'")
+    asserts.expect_failure(env, "could not find 'otp/bin/erl'")
     return analysistest.end(env)
 
 _fails_when_erl_absent_test = analysistest.make(_fails_when_erl_absent_test_impl, expect_failure = True)
