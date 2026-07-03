@@ -5,7 +5,10 @@ Erlang/OTP target.
 
 ## Status
 
-These rules are early-stage. In particular:
+**Early-stage and not yet validated in production.** This project has no known production users
+and has not been battle-tested beyond its own CI (Linux and macOS, a handful of example
+projects, one Bazel version, one Gleam version). Treat it as something to evaluate and
+contribute to, not as a dependency to build critical infrastructure on yet. In particular:
 
 - **Erlang is hermetic by default.** Bazel downloads a prebuilt OTP release and uses it
   directly, rather than discovering Erlang/OTP on the host's `PATH`; it currently supports
@@ -33,7 +36,8 @@ These rules are early-stage. In particular:
   `gleam.local_erlang_toolchain()` opts out of it. See
   [examples/standalone_cli](examples/standalone_cli).
 
-Contributions and bug reports are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions and bug reports are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). If you try
+this on a real project, hearing about what broke (or didn't) is especially useful right now.
 
 ## Installation
 
@@ -48,14 +52,120 @@ git_override(
 )
 ```
 
+This isn't published to the Bazel Central Registry yet, so `git_override` (pinning a specific
+tag, commit, or branch) is currently the only supported way to depend on it.
+
+## Quick start
+
+A minimal library-and-binary package looks like this. First, declare the toolchain and your Hex
+dependencies in `MODULE.bazel` (checksums come from `gleam deps download`'s output, or from each
+package's page on [hex.pm](https://hex.pm)):
+
+```starlark
+gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
+gleam.toolchain(version = "1.17.0")
+gleam.hex_package(
+    name = "gleam_stdlib",
+    sha256 = "621d600bb134bc239cb2537630899817b1a42e60a1d46c5e9f3fae39f88c800b",
+    version = "0.60.0",
+    deps = [],
+)
+gleam.hex_package(
+    name = "gleeunit",
+    sha256 = "da9553ce58b67924b3c631f96fe3370c49eb6d6dc6b384ec4862cc4aaa718f3c",
+    version = "1.9.0",
+    deps = ["gleam_stdlib"],
+)
+use_repo(gleam, "gleam_packages", "gleam_toolchains", "local_config_erlang")
+
+register_toolchains("@gleam_toolchains//:all")
+register_toolchains("@local_config_erlang//:erlang_toolchain_definition")
+```
+
+Then a `gleam.toml` (same as `gleam new` would generate) next to a `BUILD.bazel`:
+
+```toml
+# gleam.toml
+name = "my_app"
+version = "0.1.0"
+
+[dependencies]
+gleam_stdlib = "~> 0.60 or ~> 0.68 or ~> 0.69"
+
+[dev-dependencies]
+gleeunit = "~> 1.0"
+```
+
+```starlark
+# BUILD.bazel
+load("@rules_gleam//gleam:defs.bzl", "gleam_package")
+
+# Expands to a gleam_library "my_app_lib", a gleam_binary "my_app" (since entry_module is set),
+# and a gleam_test "my_app_test" recompiling srcs + test_srcs together with gleeunit.
+gleam_package(
+    name = "my_app",
+    srcs = glob(["src/**/*.gleam"]),
+    entry_module = "main",
+    gleam_toml = "gleam.toml",
+    test_deps = ["@gleam_packages//:gleeunit"],
+    test_srcs = glob(["test/**/*.gleam"]),
+    deps = ["@gleam_packages//:gleam_stdlib"],
+)
+```
+
+With sources under `src/` and `test/`:
+
+```gleam
+// src/my_app.gleam
+pub fn greeting() -> String {
+  "Hello from my_app!"
+}
+```
+
+```gleam
+// src/main.gleam
+import gleam/io
+import my_app
+
+pub fn main() {
+  io.println(my_app.greeting())
+}
+```
+
+```gleam
+// test/my_app_test.gleam
+import gleeunit
+import gleeunit/should
+import my_app
+
+pub fn main() {
+  gleeunit.main()
+}
+
+pub fn greeting_test() {
+  my_app.greeting()
+  |> should.equal("Hello from my_app!")
+}
+```
+
+Then the usual Bazel commands work as expected:
+
+```shell
+bazel run //:my_app      # builds and runs the escript
+bazel test //:my_app_test
+bazel test //:my_app_format_test  # gleam_package also adds a `gleam format --check` test
+```
+
+See [examples/smoke](examples/smoke) for this exact example, checked in and exercised by CI.
+
 ## Usage
 
-See a basic example [here](examples/smoke). For a runnable HTTP service with a real
-end-to-end test, see [examples/web_service](examples/web_service). For a fully self-contained
-CLI binary needing no host Erlang, see [examples/standalone_cli](examples/standalone_cli).
+For a runnable HTTP service with a real end-to-end test, see
+[examples/web_service](examples/web_service). For a fully self-contained CLI binary needing no
+host Erlang, see [examples/standalone_cli](examples/standalone_cli).
 
-Hex dependencies can be declared one-by-one with `gleam.hex_package(...)`, or in bulk by
-pointing `gleam.hex_manifest(manifest = "//path/to:manifest.toml")` at a Gleam project's own
+Hex dependencies can be declared one-by-one with `gleam.hex_package(...)` (as above), or in bulk
+by pointing `gleam.hex_manifest(manifest = "//path/to:manifest.toml")` at a Gleam project's own
 `manifest.toml` lockfile (see [examples/web_service/MODULE.bazel](examples/web_service/MODULE.bazel)),
 which avoids hand-maintaining a package's full transitive dependency graph and checksums.
 
