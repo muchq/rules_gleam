@@ -13,6 +13,8 @@ plain string scanning (Starlark has no regex engine and repository/module contex
 cannot be iterated directly, only indexed).
 """
 
+visibility(["//gleam/...", "//test/..."])
+
 def _extract_string(line, key):
     """Returns the value of `key = "..."` in `line`, or None if `key` isn't present."""
     marker = key + " = \""

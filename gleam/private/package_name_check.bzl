@@ -6,6 +6,8 @@ package is built or tested, without adding its output to the package's default o
 slowing down the critical path.
 """
 
+visibility(["//gleam/...", "//test/..."])
+
 def _gleam_package_name_check_impl(ctx):
     marker = ctx.actions.declare_file(ctx.label.name + ".ok")
     ctx.actions.run_shell(

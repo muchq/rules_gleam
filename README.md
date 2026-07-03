@@ -15,8 +15,11 @@ These rules are early-stage. In particular:
   PATH-based host discovery entirely with `gleam.local_erlang_toolchain()` (see
   [examples/nested_smoke](examples/nested_smoke)) if hermetic downloads aren't practical in
   your build environment.
-- **Test coverage is currently limited to basic end-to-end examples** (see `examples/`) rather
-  than a full unit test suite for the rule implementations themselves.
+- **Test coverage is primarily end-to-end examples** (see `examples/`), plus a growing
+  `test/unit/` suite of Starlark `analysistest`/`unittest` tests (bazel-skylib) for private
+  rule/module-extension logic that's awkward to exercise through a full build --
+  [examples/expect_fail](examples/expect_fail) additionally proves `gleam_test` and
+  `gleam_format_test` actually detect real failures, not just happy-path input.
 - `gleam_binary` (escript) always requires a compatible Erlang runtime to be present on the
   machine that _runs_ the resulting executable: its `#!/usr/bin/env escript` shebang finds
   `escript` via `PATH` at _run_ time, separately from whichever Erlang/OTP built it (the

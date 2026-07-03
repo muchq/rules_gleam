@@ -44,6 +44,7 @@ gleam.hex_manifest(manifest = "//path/to:manifest.toml")
 load("//erlang/private:hermetic_erlang_repository.bzl", "hermetic_erlang_repository")  # buildifier: disable=bzl-visibility
 load("//erlang/private:local_erlang_repository.bzl", "local_erlang_repository")  # buildifier: disable=bzl-visibility
 load("//gleam/private:manifest_toml.bzl", "parse_manifest_toml")
+load("//gleam/private:version.bzl", "parse_version")
 load(":repositories.bzl", "gleam_register_toolchains")
 
 _DEFAULT_NAME = "gleam"
@@ -121,25 +122,6 @@ path-sourced packages are skipped with a printed warning, since only Hex-hosted 
 supported.
 """, allow_single_file = True, mandatory = True),
 })
-
-def _parse_version(version):
-    """Parses a version string into a list of integers for comparison."""
-    parts = []
-    for part in version.split("."):
-        num = ""
-
-        # iterate directly over characters
-        for i in range(len(part)):
-            char = part[i]
-            if char.isdigit():
-                num += char
-            else:
-                break
-        if num:
-            parts.append(int(num))
-        else:
-            parts.append(0)
-    return parts
 
 def _toolchain_extension(module_ctx):
     registrations = {}
@@ -229,7 +211,7 @@ def _toolchain_extension(module_ctx):
     # Register Gleam toolchains.
     for name, versions in registrations.items():
         if len(versions) > 1:
-            selected = sorted(versions, key = _parse_version, reverse = True)[0]
+            selected = sorted(versions, key = parse_version, reverse = True)[0]
 
             # buildifier: disable=print
             print("NOTE: gleam toolchain {} has multiple versions {}, selected {}".format(name, versions, selected))

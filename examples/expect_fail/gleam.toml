@@ -1,0 +1,8 @@
+name = "expect_fail_fixture"
+version = "0.1.0"
+
+[dependencies]
+gleam_stdlib = "~> 0.60 or ~> 0.68 or ~> 0.69"
+
+[dev-dependencies]
+gleeunit = "~> 1.0"

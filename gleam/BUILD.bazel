@@ -54,6 +54,7 @@ bzl_library(
     deps = [
         ":repositories",
         "//gleam/private:manifest_toml",
+        "//gleam/private:version",
     ],
 )
 

@@ -1,0 +1,3 @@
+load(":erlang_otp_tree_test.bzl", "erlang_otp_tree_test_suite")
+
+erlang_otp_tree_test_suite(name = "erlang_otp_tree_test_suite")
