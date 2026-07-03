@@ -38,6 +38,7 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = [
         "//gleam/private:gleam_binary",
+        "//gleam/private:gleam_format_test",
         "//gleam/private:gleam_library",
         "//gleam/private:gleam_release",
         "//gleam/private:gleam_test",

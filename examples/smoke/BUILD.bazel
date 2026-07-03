@@ -1,4 +1,4 @@
-load("@rules_gleam//gleam:defs.bzl", "gleam_package", "gleam_release")
+load("@rules_gleam//gleam:defs.bzl", "gleam_format_test", "gleam_package", "gleam_release")
 
 # gleam_package expands to:
 #  - a gleam_library "my_app_lib" (since entry_module is set, the library is not named
@@ -24,4 +24,13 @@ gleam_release(
     name = "my_app_release",
     dep = ":my_app_lib",
     entry_module = "main",
+)
+
+# Fails with a diff if any source or test file isn't already `gleam format`-clean.
+gleam_format_test(
+    name = "my_app_format_test",
+    srcs = glob([
+        "src/**/*.gleam",
+        "test/**/*.gleam",
+    ]),
 )
