@@ -10,12 +10,9 @@ bazel_dep(name = "platforms", version = "1.0.0")
 gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
 gleam.toolchain(version = "1.14.0")
 
-# gleam_standalone_release requires the hermetic toolchain -- see examples/hermetic_erlang for
-# the checksum's provenance (same otp_version/platform, already verified by CI there).
-gleam.erlang_toolchain(
-    otp_version = "27.1.2",
-    sha256 = {"linux_amd64": "a3eb9b20fb48017c87b4e2867f64b8dfcfaf66cb8f366e3222c9b113c49ee254"},
-)
+# gleam_standalone_release requires the hermetic toolchain, which is on by default -- no
+# gleam.erlang_toolchain(...) call needed here at all. See examples/hermetic_erlang if you
+# need to pin a specific OTP version/checksum instead of the built-in default.
 gleam.hex_package(
     name = "gleam_stdlib",
     sha256 = "621d600bb134bc239cb2537630899817b1a42e60a1d46c5e9f3fae39f88c800b",

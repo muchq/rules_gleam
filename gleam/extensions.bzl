@@ -2,10 +2,11 @@
 
 This extension handles:
 1. Gleam compiler toolchain registration (downloads gleam binary per platform).
-2. Erlang toolchain configuration: by default, detects system-installed Erlang/OTP on PATH
-   (see erlang/private/local_erlang_repository.bzl); optionally, gleam.erlang_toolchain(...)
-   downloads a specific prebuilt Erlang/OTP release instead, for a hermetic build
-   (see erlang/private/hermetic_erlang_repository.bzl).
+2. Erlang toolchain configuration: hermetic by default (Bazel downloads a prebuilt OTP release
+   for you, see erlang/private/hermetic_erlang_repository.bzl), pinned to a specific version via
+   gleam.erlang_toolchain(...); or, if you explicitly opt out with
+   gleam.local_erlang_toolchain(), the previous PATH-based host discovery
+   (erlang/private/local_erlang_repository.bzl).
 3. Hex package management (downloads and exposes 3p Gleam packages from hex.pm), either
    declared package-by-package with gleam.hex_package(...), or in bulk by parsing a Gleam
    project's own manifest.toml lockfile with gleam.hex_manifest(...) -- see below.
@@ -19,15 +20,24 @@ gleam.hex_package(name = "gleeunit", version = "1.0.2", sha256 = "...", deps = [
 use_repo(gleam, "gleam_toolchains", "local_config_erlang", "gleam_packages")
 ```
 
+This already gets you a hermetic Erlang/OTP toolchain (see `_DEFAULT_HERMETIC_OTP_VERSION`
+below for the exact pinned version) with no further configuration. To pin a specific OTP
+release instead of the built-in default:
+```starlark
+gleam.erlang_toolchain(otp_version = "27.1.2")
+```
+
+To opt out of the hermetic toolchain entirely and go back to discovering Erlang/OTP on the
+host's `PATH` (e.g. if hermetic downloads aren't practical in your build environment, or you
+need a platform the hermetic toolchain doesn't support):
+```starlark
+gleam.local_erlang_toolchain()
+```
+
 Instead of declaring every package (and its full transitive graph) by hand, parse them from a
 project's manifest.toml lockfile:
 ```starlark
 gleam.hex_manifest(manifest = "//path/to:manifest.toml")
-```
-
-To opt into a hermetic, downloaded Erlang/OTP instead of PATH-based discovery:
-```starlark
-gleam.erlang_toolchain(otp_version = "27.1.2")
 ```
 """
 
@@ -38,6 +48,17 @@ load(":repositories.bzl", "gleam_register_toolchains")
 
 _DEFAULT_NAME = "gleam"
 
+# Used when Erlang is hermetic by default (no gleam.erlang_toolchain(...) call) -- see
+# erlang/private/hermetic_erlang_repository.bzl. Only linux_amd64 has a pinned checksum today
+# (verified via this repo's own CI, see examples/hermetic_erlang); other platforms download
+# unverified and print the observed checksum, same as an explicit gleam.erlang_toolchain(...)
+# call with no matching sha256 entry.
+_DEFAULT_HERMETIC_OTP_VERSION = "27.1.2"
+_DEFAULT_HERMETIC_OS_VERSION = "ubuntu-22.04"
+_DEFAULT_HERMETIC_SHA256 = {
+    "linux_amd64": "a3eb9b20fb48017c87b4e2867f64b8dfcfaf66cb8f366e3222c9b113c49ee254",
+}
+
 gleam_toolchain = tag_class(attrs = {
     "name": attr.string(doc = """\
 Base name for generated repositories, allowing more than one gleam toolchain to be registered.
@@ -46,21 +67,22 @@ Overriding the default is only permitted in the root module.
     "version": attr.string(doc = "Explicit version of gleam.", mandatory = True),
     "erlang_version": attr.string(doc = """\
 Optional exact Erlang/OTP release to require (e.g. "26"), checked against
-erlang:system_info(otp_release) on the host Erlang found on PATH. The Erlang toolchain is not
-yet hermetic (see erlang/private/local_erlang_repository.bzl), so this does not pin the actual
-bytes used to build -- it only turns a silent cross-machine reproducibility gap into a loud,
-actionable failure when the host's Erlang/OTP does not match what you expect. Leave unset to
-accept whatever Erlang/OTP release is found.
+erlang:system_info(otp_release) on the host Erlang found on PATH. Only applies when
+gleam.local_erlang_toolchain() has also been used to opt out of the (now default) hermetic
+toolchain -- PATH-based discovery does not pin the actual bytes used to build, so this only
+turns a silent cross-machine reproducibility gap into a loud, actionable failure when the
+host's Erlang/OTP does not match what you expect. Leave unset to accept whatever Erlang/OTP
+release is found.
 """, default = ""),
 })
 
 erlang_toolchain = tag_class(attrs = {
     "otp_version": attr.string(doc = """\
-Exact Erlang/OTP release to fetch and use hermetically instead of discovering Erlang on PATH
-(e.g. "27.1.2"). When this tag is used, the local PATH-based Erlang discovery in
-erlang/private/local_erlang_repository.bzl is bypassed entirely in favor of downloading a
-prebuilt OTP release from the same origins used by erlef/setup-beam (builds.hex.pm for Linux,
-erlef/otp_builds on GitHub for macOS). Mutually exclusive with gleam.toolchain(erlang_version=...).
+Exact Erlang/OTP release to fetch hermetically (e.g. "27.1.2"), overriding the version Erlang
+is already hermetic with by default even without this tag. Downloads a prebuilt OTP release
+from the same origins used by erlef/setup-beam (builds.hex.pm for Linux, erlef/otp_builds on
+GitHub for macOS). Mutually exclusive with gleam.local_erlang_toolchain() and
+gleam.toolchain(erlang_version=...).
 """, mandatory = True),
     "os_version": attr.string(doc = """\
 Linux distro/version tag used to select the prebuilt OTP archive (e.g. "ubuntu-22.04").
@@ -73,6 +95,13 @@ Optional map from "<os>_<arch>" (e.g. "linux_amd64", "linux_arm64", "macos_x86_6
 entry are downloaded unverified; the actual checksum is printed so it can be pinned.
 """, default = {}),
 })
+
+local_erlang_toolchain = tag_class(attrs = {}, doc = """\
+Opts out of the (now default) hermetic Erlang/OTP toolchain, reverting to discovering
+Erlang/OTP on the host's PATH instead (see erlang/private/local_erlang_repository.bzl). Use
+this if hermetic downloads aren't practical in your build environment, or you need a platform
+the hermetic toolchain doesn't support. Mutually exclusive with gleam.erlang_toolchain(...).
+""")
 
 hex_package = tag_class(attrs = {
     "name": attr.string(doc = "Hex package name (e.g. 'gleam_stdlib').", mandatory = True),
@@ -118,6 +147,7 @@ def _toolchain_extension(module_ctx):
     package_sources = {}  # package name -> "gleam.hex_package(...)" or the manifest label, for conflict errors
     erlang_versions = []
     hermetic_erlang_toolchains = []
+    local_erlang_requested = False
 
     def _add_package(name, version, sha256, deps, source_desc):
         if name in package_sources:
@@ -136,6 +166,9 @@ def _toolchain_extension(module_ctx):
                 os_version = hermetic.os_version,
                 sha256 = hermetic.sha256,
             ))
+
+        if mod.tags.local_erlang_toolchain:
+            local_erlang_requested = True
 
         for toolchain in mod.tags.toolchain:
             if toolchain.name != _DEFAULT_NAME and not mod.is_root:
@@ -209,8 +242,9 @@ def _toolchain_extension(module_ctx):
             register = False,
         )
 
-    # Register the Erlang toolchain repository: hermetic (downloaded) if gleam.erlang_toolchain
-    # was used anywhere, otherwise the default PATH-based local discovery.
+    # Register the Erlang toolchain repository. Hermetic by default (either the built-in
+    # version, or whatever gleam.erlang_toolchain(...) pins); gleam.local_erlang_toolchain()
+    # opts back out to PATH-based host discovery.
     if len(hermetic_erlang_toolchains) > 1:
         fail(
             "Only one gleam.erlang_toolchain(...) call is allowed across all modules, since " +
@@ -219,19 +253,35 @@ def _toolchain_extension(module_ctx):
             ),
         )
 
-    if hermetic_erlang_toolchains:
+    if hermetic_erlang_toolchains and local_erlang_requested:
+        fail(
+            "gleam.erlang_toolchain(...) and gleam.local_erlang_toolchain() are mutually " +
+            "exclusive: the former pins a hermetic OTP release, the latter opts out of the " +
+            "hermetic toolchain entirely.",
+        )
+
+    if hermetic_erlang_toolchains or not local_erlang_requested:
         if erlang_versions:
             fail(
-                "gleam.toolchain(erlang_version = ...) and gleam.erlang_toolchain(...) are " +
-                "mutually exclusive: the hermetic toolchain already pins an exact Erlang/OTP " +
-                "release, so a separate PATH-detection version pin is redundant.",
+                "gleam.toolchain(erlang_version = ...) only applies when opting out of the " +
+                "hermetic toolchain -- add gleam.local_erlang_toolchain() to your MODULE.bazel " +
+                "if you need PATH-based Erlang/OTP version validation, or remove erlang_version " +
+                "since the hermetic toolchain (the default) already pins an exact release.",
             )
-        hermetic = hermetic_erlang_toolchains[0]
+        if hermetic_erlang_toolchains:
+            hermetic = hermetic_erlang_toolchains[0]
+            otp_version = hermetic.otp_version
+            os_version = hermetic.os_version
+            sha256 = hermetic.sha256
+        else:
+            otp_version = _DEFAULT_HERMETIC_OTP_VERSION
+            os_version = _DEFAULT_HERMETIC_OS_VERSION
+            sha256 = _DEFAULT_HERMETIC_SHA256
         hermetic_erlang_repository(
             name = "local_config_erlang",
-            otp_version = hermetic.otp_version,
-            os_version = hermetic.os_version,
-            sha256 = hermetic.sha256,
+            otp_version = otp_version,
+            os_version = os_version,
+            sha256 = sha256,
         )
     else:
         if len(erlang_versions) > 1:
@@ -361,6 +411,7 @@ gleam = module_extension(
     tag_classes = {
         "toolchain": gleam_toolchain,
         "erlang_toolchain": erlang_toolchain,
+        "local_erlang_toolchain": local_erlang_toolchain,
         "hex_package": hex_package,
         "hex_manifest": hex_manifest,
     },

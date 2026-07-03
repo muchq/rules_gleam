@@ -28,6 +28,9 @@ jobs:
         uses: actions/checkout@v6
       - name: Set up Erlang
         run: |
+          # Erlang is hermetic by default now, so most examples download their own OTP release
+          # and never touch this. Only examples/nested_smoke opts out via
+          # gleam.local_erlang_toolchain(), so it still needs a system Erlang on PATH.
           echo "Installing Erlang..."
           # Update package lists to avoid 404 errors for outdated packages
           sudo apt-get update -y
@@ -137,7 +140,7 @@ jobs:
           # Prove this binary bundles its own Erlang/OTP runtime: run it with a PATH that has
           # basic coreutils (which erl's own wrapper script shells out to internally) but
           # deliberately excludes /usr/bin and /usr/lib/erlang, where the "Set up Erlang" step
-          # earlier installed one system-wide for the other examples -- so no system `erl`
+          # earlier installed one system-wide (for examples/nested_smoke) -- so no system `erl`
           # could possibly be found via PATH lookup.
           mkdir -p /tmp/no_erlang_path
           for tool in dirname basename readlink cat; do
