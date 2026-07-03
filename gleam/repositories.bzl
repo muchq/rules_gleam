@@ -1,46 +1,12 @@
-"""Declare external dependencies for rules_gleam.
+"""Declares the gleam compiler toolchain repositories used by the bzlmod extension.
 
-This file is primarily for WORKSPACE-based setup. With bzlmod, most dependencies
-are handled by MODULE.bazel and module extensions.
+Dependencies on other modules (bazel_skylib, platforms, etc.) are declared directly in
+MODULE.bazel via bazel_dep -- bzlmod is the only supported dependency mode.
 """
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", _http_archive = "http_archive")
-load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("//gleam/private:toolchains_repo.bzl", "PLATFORMS", "toolchains_repo")
 load("//gleam/private:versions.bzl", "TOOL_VERSIONS")
 
-def http_archive(name, **kwargs):
-    maybe(_http_archive, name = name, **kwargs)
-
-def rules_gleam_dependencies():
-    """Fetches dependencies required by rules_gleam for WORKSPACE setup.
-
-    This includes bazel_skylib and potentially sets up toolchains if not using bzlmod.
-    """
-
-    # bazel_skylib is a common utility library.
-    http_archive(
-        name = "bazel_skylib",
-        sha256 = "3b5b49006181f5f8ff626ef8ddceaa95e9bb8ad294f7b5d7b11ea9f7ddaf8c59",
-        urls = [
-            "https://github.com/bazelbuild/bazel-skylib/releases/download/1.9.0/bazel-skylib-1.9.0.tar.gz",
-            "https://mirror.bazel.build/github.com/bazelbuild/bazel-skylib/releases/download/1.9.0/bazel-skylib-1.9.0.tar.gz",
-        ],
-    )
-
-    # For WORKSPACE users, platforms are also needed.
-    http_archive(
-        name = "platforms",
-        sha256 = "3384eb1c30762704fbe38e440204e114154086c8fc8a8c2e3e28441028c019a8",
-        urls = [
-            "https://mirror.bazel.build/github.com/bazelbuild/platforms/releases/download/1.0.0/platforms-1.0.0.tar.gz",
-            "https://github.com/bazelbuild/platforms/releases/download/1.0.0/platforms-1.0.0.tar.gz",
-        ],
-    )
-
-########
-# Remaining content of the file is only used to support toolchains.
-########
 _DOC = "Fetch external tools needed for gleam toolchain"
 _ATTRS = {
     "gleam_version": attr.string(mandatory = True, values = TOOL_VERSIONS.keys()),
@@ -90,18 +56,20 @@ gleam_repositories = repository_rule(
 )
 
 # Wrapper macro around everything above, this is the primary API
-def gleam_register_toolchains(name, register = True, **kwargs):
-    """Convenience macro for users which does typical setup.
+def gleam_register_toolchains(name, **kwargs):
+    """Convenience macro used by the bzlmod extension (gleam/extensions.bzl) for typical setup.
 
     - create a repository for each built-in platform like "gleam_linux_amd64"
     - TODO: create a convenience repository for the host platform like "gleam_host"
     - create a repository exposing toolchains for each platform like "gleam_platforms"
-    - register a toolchain pointing at each platform
     Users can avoid this macro and do these steps themselves, if they want more control.
+
+    Does not itself call native.register_toolchains -- the bzlmod extension's caller does that
+    explicitly via MODULE.bazel's own register_toolchains(...), once the extension's
+    use_repo(...) call has made the generated repository visible.
+
     Args:
         name: base name for all created repos, like "gleam1_14"
-        register: whether to call through to native.register_toolchains.
-            Should be True for WORKSPACE users, but false when used under bzlmod extension
         **kwargs: passed to each gleam_repositories call
     """
     for platform in PLATFORMS.keys():
@@ -110,8 +78,6 @@ def gleam_register_toolchains(name, register = True, **kwargs):
             platform = platform,
             **kwargs
         )
-        if register:
-            native.register_toolchains("@%s_toolchains//:%s_toolchain" % (name, platform))
 
     toolchains_repo(
         name = name + "_toolchains",

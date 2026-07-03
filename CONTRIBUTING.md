@@ -49,9 +49,8 @@ echo "common $OVERRIDE" >> ~/.bazelrc
 ```
 
 This means that any usage of `@muchq_rules_gleam` on your system will point to this folder.
-Each example under `examples/` also sets this up directly via `local_path_override`
-(bzlmod) or `local_repository` (WORKSPACE) so it always builds against the checked-out
-source.
+Each example under `examples/` also sets this up directly via `local_path_override` in its own
+`MODULE.bazel` so it always builds against the checked-out source.
 
 ## Releasing
 
