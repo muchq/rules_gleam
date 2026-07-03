@@ -16,7 +16,7 @@ load("//gleam/private:toolchains_repo.bzl", "PLATFORMS")
 # erlang/private/hermetic_erlang_repository.bzl normalizes) -- accept both.
 _ARCH = {
     "aarch64": "aarch64",
-    "arm64": "arm64",
+    "arm64": "aarch64",
     "x86_64": "x86_64",
     "amd64": "x86_64",
 }
