@@ -38,3 +38,8 @@ git_override(
 
 See a basic example [here](examples/smoke). For a runnable HTTP service with a real
 end-to-end test, see [examples/web_service](examples/web_service).
+
+Hex dependencies can be declared one-by-one with `gleam.hex_package(...)`, or in bulk by
+pointing `gleam.hex_manifest(manifest = "//path/to:manifest.toml")` at a Gleam project's own
+`manifest.toml` lockfile (see [examples/web_service/MODULE.bazel](examples/web_service/MODULE.bazel)),
+which avoids hand-maintaining a package's full transitive dependency graph and checksums.

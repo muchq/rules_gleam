@@ -62,3 +62,9 @@ bzl_library(
     srcs = ["package_name_check.bzl"],
     visibility = ["//gleam:__subpackages__"],
 )
+
+bzl_library(
+    name = "manifest_toml",
+    srcs = ["manifest_toml.bzl"],
+    visibility = ["//gleam:__subpackages__"],
+)
