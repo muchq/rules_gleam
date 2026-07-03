@@ -15,17 +15,17 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != 'main' }}
 jobs:
   test:
-    name: Test (Bazel ${{ matrix.bazel-version }}, OS ${{ matrix.os }})
+    name: Test (OS ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
-        bazel-version: ["9.x"] # bzlmod is the only supported dependency mode; see .bazelrc
+        os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-      - name: Set up Erlang
+      - name: Set up Erlang (Linux)
+        if: runner.os == 'Linux'
         run: |
           # Erlang is hermetic by default now, so most examples download their own OTP release
           # and never touch this. Only examples/nested_smoke opts out via
@@ -35,19 +35,29 @@ jobs:
           sudo apt-get update -y
           # Install Erlang with --fix-missing to handle potential fetch errors
           sudo apt-get install -y --fix-missing erlang
-      - name: Set up Bazel ${{ matrix.bazel-version }}
+      - name: Set up Erlang (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # Same rationale as the Linux step above (only examples/nested_smoke needs this).
+          echo "Installing Erlang..."
+          brew install erlang
+      - name: Set up Bazel
         uses: bazel-contrib/setup-bazel@0.18.0
-        with:
-          version: ${{ matrix.bazel-version }}
+        # No version-related input: this action's valid inputs are bazelisk-version (which
+        # Bazel version *fetching tool* to install, not which Bazel itself) plus cache/output
+        # knobs -- it has no "version" input despite a previous revision of this file passing
+        # one (silently ignored with an "Unexpected input(s)" warning every run). The actual
+        # Bazel version is resolved by Bazelisk from .bazelversion at the repo root, same as
+        # any local `bazel` invocation.
       - name: Mount Bazel cache
         uses: actions/cache@v5
         with:
           path: |
             ~/.cache/bazel
             ~/.cache/bazel-repo
-          key: bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-${{ hashFiles('**/MODULE.bazel') }}
+          key: bazel-cache-${{ matrix.os }}-${{ hashFiles('.bazelversion', '**/MODULE.bazel') }}
           restore-keys: |
-            bazel-cache-${{ matrix.os }}-${{ matrix.bazel-version }}-
+            bazel-cache-${{ matrix.os }}-
       - name: Run Bazel Unit Tests - test/unit (Starlark analysistest/unittest)
         run: |
           echo "Running Starlark unit tests for private rule/module-extension helpers"
@@ -92,6 +102,10 @@ jobs:
           echo "Running tests in examples/web_service directory"
           bazel test --test_output=errors //...
       - name: Verify examples/web_service's gleam_release on a fresh, Erlang-free machine (Docker)
+        # GitHub's macOS runners can't run Linux containers, so this Docker-based proof only
+        # runs on Linux. The build+test steps above still cover macOS; they just can't prove
+        # portability to a machine that never had Erlang installed the same way Docker does.
+        if: runner.os == 'Linux'
         working-directory: examples/web_service
         run: |
           # Same rationale as examples/standalone_cli: gleam_release also bundles the
@@ -179,6 +193,8 @@ jobs:
           echo "Building examples/standalone_cli directory"
           bazel build //...
       - name: Verify examples/standalone_cli on a fresh, Erlang-free machine (Docker)
+        # Same rationale as examples/web_service's Docker step above: not available on macOS.
+        if: runner.os == 'Linux'
         working-directory: examples/standalone_cli
         run: |
           # A same-machine PATH trick can't fully rule out accidentally finding a system

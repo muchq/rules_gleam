@@ -8,15 +8,19 @@ bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.1.0")
 
 gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
-gleam.toolchain(version = "1.14.0")
+gleam.toolchain(version = "1.17.0")
 
 # Erlang is hermetic by default; this pins a specific otp_version/checksum instead of
-# accepting the built-in default -- that's the whole point of this example. sha256 for
-# linux_amd64 (the only platform CI runs on) was pinned from the checksum printed by the
-# first, unverified CI run.
+# accepting the built-in default -- that's the whole point of this example. Deliberately a
+# *different* OTP release than the built-in default (currently 28.1, see
+# gleam/extensions.bzl's _DEFAULT_HERMETIC_OTP_VERSION) rather than just re-pinning the same
+# one, so CI actually exercises a second OTP release end-to-end and can catch BEAM-compat
+# regressions across versions (gleam itself requires OTP 27.0+, so this can't go below that).
+# Confirmed available on both builds.hex.pm (Linux) and erlef/otp_builds (macOS) before
+# picking it. sha256 is not yet pinned -- the first CI run against this version will download
+# unverified and print the actual checksum to pin here.
 gleam.erlang_toolchain(
-    otp_version = "27.1.2",
-    sha256 = {"linux_amd64": "a3eb9b20fb48017c87b4e2867f64b8dfcfaf66cb8f366e3222c9b113c49ee254"},
+    otp_version = "29.0.2",
 )
 gleam.hex_package(
     name = "gleam_stdlib",

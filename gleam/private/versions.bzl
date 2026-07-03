@@ -3,7 +3,7 @@
 # Default Gleam version to use if not specified by the user module.
 # The SHA256 hashes are for this specific version.
 # If this version is updated, the SHA256 hashes below MUST also be updated.
-GLEAM_VERSION = "1.14.0"
+GLEAM_VERSION = "1.17.0"
 
 TOOL_VERSIONS = {
     "1.10.0": {
@@ -18,5 +18,12 @@ TOOL_VERSIONS = {
         "x86_64-unknown-linux-gnu": "sha256-XcZqu/PrgPIJ8cJh7PxE3BQE3YrFA+SDNp03GCpPzOg=",
         "aarch64-unknown-linux-gnu": "sha256-FjcfjjtFMD0kB1j+B/Styw/kRO3y+CMSokRRMjhpcww=",
         "x86_64-pc-windows-msvc": "sha256-BTF0a5ZN5hHaZgxOZaY13A96TpFH5LLom4xY7DFlAbg=",
+    },
+    "1.17.0": {
+        "x86_64-apple-darwin": "sha256-N97zjYEFbIGwKdf8DSjJHdo09Vxcpc6CVisBtRi9tm0=",
+        "aarch64-apple-darwin": "sha256-IOWDm5uIR146sL6mTzU7TVqmvoyRIVuPkc9Gy1HzbV4=",
+        "x86_64-unknown-linux-gnu": "sha256-wNHqraxAyIrJPqRfwVD2Nj9M64ySW1rJDzcbFmVhPMQ=",
+        "aarch64-unknown-linux-gnu": "sha256-LdwgF/jCESv2pYvGYtyMWadYFBZa5ZMjA2hQnokO6Mo=",
+        "x86_64-pc-windows-msvc": "sha256-R5Cw41xqz0QerAdGEwQXkT60sJnX0Q0MhDeSxpiGu74=",
     },
 }

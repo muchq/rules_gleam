@@ -8,7 +8,7 @@ bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.1.0")
 
 gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
-gleam.toolchain(version = "1.14.0")
+gleam.toolchain(version = "1.17.0")
 
 # Opts out of the (now default) hermetic Erlang toolchain, to keep exercising the original
 # PATH-based host discovery in CI -- see erlang/private/local_erlang_repository.bzl.

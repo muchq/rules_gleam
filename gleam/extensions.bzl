@@ -14,7 +14,7 @@ This extension handles:
 Usage in MODULE.bazel:
 ```starlark
 gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
-gleam.toolchain(version = "1.14.0")
+gleam.toolchain(version = "1.17.0")
 gleam.hex_package(name = "gleam_stdlib", version = "0.60.0", sha256 = "...", deps = [])
 gleam.hex_package(name = "gleeunit", version = "1.0.2", sha256 = "...", deps = ["gleam_stdlib"])
 use_repo(gleam, "gleam_toolchains", "local_config_erlang", "gleam_packages")
@@ -24,7 +24,7 @@ This already gets you a hermetic Erlang/OTP toolchain (see `_DEFAULT_HERMETIC_OT
 below for the exact pinned version) with no further configuration. To pin a specific OTP
 release instead of the built-in default:
 ```starlark
-gleam.erlang_toolchain(otp_version = "27.1.2")
+gleam.erlang_toolchain(otp_version = "29.0.2")
 ```
 
 To opt out of the hermetic toolchain entirely and go back to discovering Erlang/OTP on the
@@ -50,15 +50,12 @@ load(":repositories.bzl", "gleam_register_toolchains")
 _DEFAULT_NAME = "gleam"
 
 # Used when Erlang is hermetic by default (no gleam.erlang_toolchain(...) call) -- see
-# erlang/private/hermetic_erlang_repository.bzl. Only linux_amd64 has a pinned checksum today
-# (verified via this repo's own CI, see examples/hermetic_erlang); other platforms download
-# unverified and print the observed checksum, same as an explicit gleam.erlang_toolchain(...)
-# call with no matching sha256 entry.
-_DEFAULT_HERMETIC_OTP_VERSION = "27.1.2"
+# erlang/private/hermetic_erlang_repository.bzl. No checksum is pinned yet for this version --
+# the first CI run downloads unverified and prints the observed checksum, same as an explicit
+# gleam.erlang_toolchain(...) call with no matching sha256 entry.
+_DEFAULT_HERMETIC_OTP_VERSION = "28.1"
 _DEFAULT_HERMETIC_OS_VERSION = "ubuntu-22.04"
-_DEFAULT_HERMETIC_SHA256 = {
-    "linux_amd64": "a3eb9b20fb48017c87b4e2867f64b8dfcfaf66cb8f366e3222c9b113c49ee254",
-}
+_DEFAULT_HERMETIC_SHA256 = {}
 
 gleam_toolchain = tag_class(attrs = {
     "name": attr.string(doc = """\
@@ -91,8 +88,8 @@ Ignored on macOS. The Linux archives are glibc-linked and tied to a specific dis
 there is no portable musl-static build available from this origin.
 """, default = "ubuntu-22.04"),
     "sha256": attr.string_dict(doc = """\
-Optional map from "<os>_<arch>" (e.g. "linux_amd64", "linux_arm64", "macos_x86_64",
-"macos_aarch64") to the expected sha256 of that platform's OTP tarball. Platforms without an
+Optional map from "<os>_<arch>" (e.g. "linux_amd64", "linux_arm64", "macos_amd64",
+"macos_arm64") to the expected sha256 of that platform's OTP tarball. Platforms without an
 entry are downloaded unverified; the actual checksum is printed so it can be pinned.
 """, default = {}),
 })
