@@ -12,6 +12,7 @@ GleamPackageInfo = provider(
         "compiled_dir": "TreeArtifact (named after the package) containing ebin/ with compiled BEAM files.",
         "package_name": "Name of the Gleam package.",
         "transitive_compiled_dirs": "Depset of all transitive compiled TreeArtifacts (including this package's own).",
+        "transitive_data": "Depset of all transitive runtime data Files (this package's own `data` plus all deps', transitively).",
     },
 )
 
@@ -29,16 +30,24 @@ def _gleam_library_impl(ctx):
     # Collect dependency info.
     dep_infos = []
     transitive_dep_sets = []
+    transitive_data_sets = []
     for dep in ctx.attr.deps:
         if GleamPackageInfo in dep:
             dep_info = dep[GleamPackageInfo]
             dep_infos.append(dep_info)
             transitive_dep_sets.append(dep_info.transitive_compiled_dirs)
+            transitive_data_sets.append(dep_info.transitive_data)
 
     # Build the transitive depset (includes this package's own output).
     transitive_compiled_dirs = depset(
         direct = [compiled_dir],
         transitive = transitive_dep_sets,
+    )
+
+    # Build the transitive data depset (includes this package's own `data`).
+    transitive_data = depset(
+        direct = ctx.files.data,
+        transitive = transitive_data_sets,
     )
 
     # Prepare inputs: source files + all transitive compiled dirs.
@@ -94,6 +103,7 @@ def _gleam_library_impl(ctx):
             compiled_dir = compiled_dir,
             package_name = package_name,
             transitive_compiled_dirs = transitive_compiled_dirs,
+            transitive_data = transitive_data,
         ),
     ]
 

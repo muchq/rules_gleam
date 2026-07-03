@@ -1,4 +1,4 @@
-load("@rules_gleam//gleam:defs.bzl", "gleam_package")
+load("@rules_gleam//gleam:defs.bzl", "gleam_package", "gleam_release")
 
 # gleam_package expands to:
 #  - a gleam_library "my_app_lib" (since entry_module is set, the library is not named
@@ -14,4 +14,14 @@ gleam_package(
     test_deps = ["@gleam_packages//:gleeunit"],
     test_srcs = glob(["test/**/*.gleam"]),
     deps = ["@gleam_packages//:gleam_stdlib"],
+)
+
+# Same entry point, packaged as a runfiles-tree binary instead of a single-file escript.
+# my_app_lib's data (gleam.toml, from gleam_package above) flows through transitively,
+# proving gleam_release actually ships declared runtime data rather than only the
+# compiled BEAM directories.
+gleam_release(
+    name = "my_app_release",
+    dep = ":my_app_lib",
+    entry_module = "main",
 )
