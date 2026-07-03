@@ -1,7 +1,8 @@
 # Bazel rules for Gleam
 
 Bazel rules for building, testing, and packaging [Gleam](https://gleam.run) projects on the
-Erlang/OTP target.
+Erlang/OTP target. See [ARCHITECTURE.md](ARCHITECTURE.md) for how the repo is laid out and how
+its test suite is organized.
 
 ## Status
 

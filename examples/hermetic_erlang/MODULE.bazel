@@ -17,10 +17,15 @@ gleam.toolchain(version = "1.17.0")
 # one, so CI actually exercises a second OTP release end-to-end and can catch BEAM-compat
 # regressions across versions (gleam itself requires OTP 27.0+, so this can't go below that).
 # Confirmed available on both builds.hex.pm (Linux) and erlef/otp_builds (macOS) before
-# picking it. sha256 is not yet pinned -- the first CI run against this version will download
-# unverified and print the actual checksum to pin here.
+# picking it. Both checksums below are what CI actually observed downloading this release
+# unverified (CI's macos-latest runner is Apple Silicon, hence macos_arm64 rather than
+# macos_amd64).
 gleam.erlang_toolchain(
     otp_version = "29.0.2",
+    sha256 = {
+        "linux_amd64": "2e9d154a52de72653a1a3c1269b10df3b4ff5e058753e167bc92602681038e9a",
+        "macos_arm64": "ec6e09dee496adf646b0a22eef26b769e7f8032c83dd10292c58d50fb38e2210",
+    },
 )
 gleam.hex_package(
     name = "gleam_stdlib",

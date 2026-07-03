@@ -60,12 +60,16 @@ load(":repositories.bzl", "gleam_register_toolchains")
 _DEFAULT_NAME = "gleam"
 
 # Used when Erlang is hermetic by default (no gleam.erlang_toolchain(...) call) -- see
-# erlang/private/hermetic_erlang_repository.bzl. No checksum is pinned yet for this version --
-# the first CI run downloads unverified and prints the observed checksum, same as an explicit
-# gleam.erlang_toolchain(...) call with no matching sha256 entry.
+# erlang/private/hermetic_erlang_repository.bzl. Checksums below are the actual digests CI
+# observed downloading OTP-28.1 unverified (printed by hermetic_erlang_repository.bzl's own
+# NOTE: log line); platforms CI doesn't run on (linux_arm64, macos_amd64) are left unpinned
+# until a run on that platform observes them, same as any other platform's first use.
 _DEFAULT_HERMETIC_OTP_VERSION = "28.1"
 _DEFAULT_HERMETIC_OS_VERSION = "ubuntu-22.04"
-_DEFAULT_HERMETIC_SHA256 = {}
+_DEFAULT_HERMETIC_SHA256 = {
+    "linux_amd64": "60c1083df707642f20831c762a68db191984314fef1d4d80b05bb8caf70b70bf",
+    "macos_arm64": "831fcfb46929c752abf0a921409a46b306e7019061653323fab7f0958ad4db25",
+}
 
 gleam_toolchain = tag_class(attrs = {
     "name": attr.string(doc = """\
