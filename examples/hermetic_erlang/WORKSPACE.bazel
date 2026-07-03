@@ -1,0 +1,19 @@
+# Override http_archive for local testing
+local_repository(
+    name = "muchq_rules_gleam",
+    path = "../..",
+)
+
+#---SNIP--- Below here is re-used in the workspace snippet published on releases
+
+######################
+# rules_gleam setup #
+######################
+# Fetches the rules_gleam dependencies.
+# If you want to have a different version of some dependency,
+# you should fetch it *before* calling this.
+# Alternatively, you can skip calling this function, so long as you've
+# already fetched all the dependencies.
+load("@muchq_rules_gleam//gleam:repositories.bzl", "rules_gleam_dependencies")
+
+rules_gleam_dependencies()
