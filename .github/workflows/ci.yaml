@@ -126,6 +126,15 @@ jobs:
           else
             bazel build --noenable_bzlmod --enable_workspace //...
           fi
+          # The escript's shebang (`#!/usr/bin/env escript`) looks up `escript` on PATH at run
+          # time, separately from whichever Erlang/OTP built it -- since Erlang is hermetic by
+          # default now, that's the downloaded OTP, not the system one the "Set up Erlang" step
+          # installs (only needed by examples/nested_smoke's explicit PATH-based opt-out).
+          # Prepend the hermetic toolchain's own bin/ so the versions actually match.
+          hermetic_bin="$(bazel info output_base)/external/muchq_rules_gleam++gleam+local_config_erlang/otp/bin"
+          if [[ -d "$hermetic_bin" ]]; then
+            export PATH="$hermetic_bin:$PATH"
+          fi
           # Verify the binary is executable and runs
           ./bazel-bin/hello_world
       - name: Run Bazel Build - examples/standalone_cli Directory
