@@ -2,7 +2,7 @@ module github.com/muchq/rules_gleam
 
 go 1.24.12
 
-require github.com/bazelbuild/bazel-gazelle v0.51.3
+require github.com/bazelbuild/bazel-gazelle v0.52.0
 
 require (
 	github.com/bazel-contrib/bazel-gazelle/v2 v2.0.0-2 // indirect
