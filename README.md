@@ -37,6 +37,14 @@ contribute to, not as a dependency to build critical infrastructure on yet. In p
   `gleam.local_erlang_toolchain()` opts out of it. See
   [examples/standalone_cli](examples/standalone_cli).
 
+The downloaded OTP installation is declared as an input to compilation and packaging actions,
+and is included in test runfiles. CI replays the smoke build's actions from copied declared
+inputs and runs its test from relocated runfiles. This checks relocation locally; it does not
+certify a particular remote execution service. The built-in OTP repository currently provides
+the host OS/CPU only, and toolchain resolution rejects incompatible execution platforms.
+Remote workers still need a compatible OS/ABI and standard Unix shell utilities. The explicit
+`gleam.local_erlang_toolchain()` opt-out remains non-hermetic.
+
 Contributions and bug reports are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). If you try
 this on a real project, hearing about what broke (or didn't) is especially useful right now.
 

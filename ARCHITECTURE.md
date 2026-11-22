@@ -80,7 +80,10 @@ Four layers, each catching a different class of regression:
    because they need a genuinely fresh environment (the Docker-based portability checks above)
    or because they exercise a real compiled binary rather than in-process Go code (the
    `gazelle_binary` vs. `testdata/sample_package` diff, `bazel run @gleam_host//:gleam --
---version`).
+--version`). `test/integration/hermetic_actions.py` also replays the smoke package's
+   compilation/packaging actions using copied declared inputs, checks that OTP resolves its
+   runtime inside that copy, and runs the test from copied runfiles without host Erlang on
+   PATH. This catches accidental cache-path dependencies without requiring a remote executor.
 
 When adding a rule or macro with any non-trivial branching logic, prefer extracting the logic
 into a plain function and covering it with layer 1 first — it's the cheapest to write and the

@@ -79,7 +79,7 @@ def _gleam_test_impl(ctx):
 
     ctx.actions.run_shell(
         command = compile_command,
-        tools = depset([gleam_exe_wrapper, underlying_gleam_tool]),
+        tools = gleam_toolchain_info.tool_files,
         inputs = inputs_depset,
         outputs = [compiled_dir],
         # See gleam_library.bzl's identical env setting for why: erlc (invoked internally by
@@ -99,14 +99,15 @@ def _gleam_test_impl(ctx):
         erlc_path = "erlc"
 
     ctx.actions.run(
-        executable = erlc_path,
+        executable = erlang_toolchain.erlc or erlc_path,
+        tools = erlang_toolchain.tool_files,
         # See gleam_binary.bzl's identical +deterministic flag for why.
         arguments = ["+deterministic", "-o", runner_beam_dir.path, runner_src.path],
         inputs = [runner_src],
         outputs = [runner_beam_dir],
         mnemonic = "CompileGleamEunitRunner",
         progress_message = "Compiling Gleam eunit runner shim",
-        use_default_shell_env = True,
+        use_default_shell_env = not bool(erlang_toolchain.erlc),
     )
 
     # Create the test runner script that invokes erl.
@@ -119,6 +120,8 @@ def _gleam_test_impl(ctx):
     # Build -pa flags for compiled test output + all dep ebin dirs + the runner shim.
     # At test runtime, paths are relative to $TEST_SRCDIR/$WORKSPACE.
     ws_name = ctx.workspace_name
+    if erlang_toolchain.erl:
+        erl_path = "$TEST_SRCDIR/{}/{}".format(ws_name, erlang_toolchain.erl.short_path)
     compiled_runtime_path = "$TEST_SRCDIR/{ws}/{path}".format(
         ws = ws_name,
         path = compiled_dir.short_path,
@@ -205,7 +208,8 @@ def _gleam_test_impl(ctx):
         [compiled_dir, runner_beam_dir] +
         all_dep_dirs.to_list() +
         list(ctx.files.test_srcs) +
-        list(ctx.files.data)
+        list(ctx.files.data) +
+        erlang_toolchain.tool_files.to_list()
     )
 
     return [
