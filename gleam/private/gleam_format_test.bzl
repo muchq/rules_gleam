@@ -8,7 +8,6 @@ other package context -- so this rule is much simpler than the compile-based one
 
 def _gleam_format_test_impl(ctx):
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
-    gleam_exe_wrapper = gleam_toolchain_info.gleam_executable
     underlying_gleam_tool = gleam_toolchain_info.underlying_gleam_tool
 
     test_runner_script = ctx.actions.declare_file(ctx.label.name + "_format_test.sh")
@@ -27,16 +26,15 @@ def _gleam_format_test_impl(ctx):
 # Format check for Gleam sources: {label}
 set -euo pipefail
 
-exec "{wrapper}" "{tool}" format --check {files}
+exec "{tool}" format --check {files}
 """.format(
             label = ctx.label.name,
-            wrapper = runtime_path(gleam_exe_wrapper),
             tool = runtime_path(underlying_gleam_tool),
             files = file_args,
         ),
     )
 
-    runfiles_files = [gleam_exe_wrapper, underlying_gleam_tool] + list(ctx.files.srcs)
+    runfiles_files = [underlying_gleam_tool] + list(ctx.files.srcs)
 
     return [
         DefaultInfo(

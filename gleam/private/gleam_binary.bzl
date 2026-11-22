@@ -27,7 +27,8 @@ def _gleam_binary_impl(ctx):
         erlc_path = "erlc"
 
     ctx.actions.run(
-        executable = erlc_path,
+        executable = erlang_toolchain.erlc or erlc_path,
+        tools = erlang_toolchain.tool_files,
         # +deterministic stops erlc from embedding the compiling machine's absolute source path
         # into the shim's .beam (debug/line-number metadata) -- without it, Bazel's per-action
         # sandbox path (which differs between separate builds of the same target) would leak
@@ -37,7 +38,7 @@ def _gleam_binary_impl(ctx):
         outputs = [shim_beam],
         mnemonic = "CompileGleamShim",
         progress_message = "Compiling Gleam binary shim",
-        use_default_shell_env = True,
+        use_default_shell_env = not bool(erlang_toolchain.otp_tree),
     )
 
     # Run the builder to create the escript
@@ -58,13 +59,14 @@ def _gleam_binary_impl(ctx):
     args.add_all(all_compiled_dirs)  # Add all compiled dirs
 
     ctx.actions.run(
-        executable = escript_path,
+        executable = erlang_toolchain.escript or escript_path,
+        tools = erlang_toolchain.tool_files,
         arguments = [builder_src.path, args],
         inputs = [builder_src, shim_beam] + all_compiled_dirs,
         outputs = [executable],
         mnemonic = "BuildGleamEscript",
         progress_message = "Building Gleam escript: " + ctx.label.name,
-        use_default_shell_env = True,
+        use_default_shell_env = not bool(erlang_toolchain.otp_tree),
     )
 
     return [

@@ -45,7 +45,6 @@ gleam_toolchain(
         "@bazel_tools//src/conditions:host_windows": "gleam.exe",
         "//conditions:default": "gleam",
     }),
-    erlang_toolchain = "@local_config_erlang//:local_toolchain",
 )
 """
 

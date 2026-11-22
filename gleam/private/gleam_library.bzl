@@ -90,7 +90,7 @@ def _gleam_library_impl(ctx):
 
     ctx.actions.run_shell(
         command = final_command,
-        tools = depset([gleam_exe_wrapper, underlying_gleam_tool]),
+        tools = gleam_toolchain_info.tool_files,
         inputs = inputs_depset,
         outputs = [compiled_dir],
         # `gleam compile-package` shells out to erlc internally; erlc (like any caller of the

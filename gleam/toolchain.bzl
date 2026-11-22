@@ -1,17 +1,7 @@
 """This module implements the Gleam-specific toolchain rule."""
 
-# This provider is now part of platform_common.ToolchainInfo in the implementation.
-# GleamToolchainInfo = provider(
-#     doc = "Information about how to invoke the Gleam tool executable and its Erlang runtime.",
-#     fields = {
-#         "gleam_executable": "The Gleam compiler executable (could be a wrapper script).",
-#         "underlying_gleam_tool": "The actual Gleam binary from the downloaded toolchain.",
-#         "erlang_toolchain": "The ErlangToolchainInfo provider for the Erlang runtime.",
-#     },
-# )
-
 def _gleam_toolchain_impl(ctx):
-    erlang_toolchain_info = ctx.attr.erlang_toolchain[platform_common.ToolchainInfo]
+    erlang_toolchain_info = ctx.toolchains["//erlang:erlang_toolchain_type"]
 
     # This is the File object for the raw gleam binary from the @gleam_toolchain_os_arch//:gleam_tool target
     actual_gleam_binary_tool = ctx.file.target_tool
@@ -46,6 +36,11 @@ shift # Consume $1, so $@ are the remaining args for gleam itself.
 # Add Erlang's bin directory to PATH if found.
 if [ -n \"$ERL_EXE_PATH_FOR_DIRNAME_INTERNAL\" ]; then
   ERLANG_BIN_DIR=\"$(dirname \"$ERL_EXE_PATH_FOR_DIRNAME_INTERNAL\")\"
+  # Exec paths are relative to the action root; Gleam may change directory.
+  case "$ERLANG_BIN_DIR" in
+    /*) ;;
+    *) ERLANG_BIN_DIR="$PWD/$ERLANG_BIN_DIR" ;;
+  esac
   export PATH=\"$ERLANG_BIN_DIR:$PATH\"
 else
   echo \"Warning: Erlang path not found in toolchain; PATH not modified for Erlang.\" >&2
@@ -72,6 +67,10 @@ exec \"$ACTUAL_GLEAM_TOOL_PATH\" \"$@\"
         underlying_gleam_tool = actual_gleam_binary_tool,
         # Pass through the Erlang toolchain info, as Gleam rules will need it.
         erlang_toolchain = erlang_toolchain_info,
+        tool_files = depset(
+            [toolchain_wrapper_script, actual_gleam_binary_tool],
+            transitive = [erlang_toolchain_info.tool_files],
+        ),
         # Provide template variables for genrule, etc.
         # For example, $(GLEAM_BIN) could point to the wrapper script.
         template_variables = platform_common.TemplateVariableInfo({
@@ -90,11 +89,7 @@ gleam_toolchain = rule(
             cfg = "exec",  # This tool is used during action execution.
             mandatory = True,
         ),
-        "erlang_toolchain": attr.label(
-            doc = "The Erlang toolchain to be used with Gleam (e.g., @local_config_erlang//:local_toolchain).",
-            providers = [platform_common.ToolchainInfo],  # Expects the standard ToolchainInfo provider.
-            mandatory = True,
-        ),
     },
+    toolchains = ["//erlang:erlang_toolchain_type"],
     doc = "Defines a Gleam compiler toolchain, including its Erlang runtime.",
 )

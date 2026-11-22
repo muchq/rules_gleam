@@ -1,0 +1,3 @@
+load(":hermetic_actions_test.bzl", "hermetic_actions_test_suite")
+
+hermetic_actions_test_suite(name = "hermetic_actions_test_suite")
