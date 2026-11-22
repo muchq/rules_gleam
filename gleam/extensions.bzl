@@ -64,7 +64,7 @@ load("//erlang/private:otp_checksums.bzl", "DEFAULT_OS_VERSION", "DEFAULT_OTP_VE
 load("//gleam/private:hex_package_policy.bzl", "unsupported_package_reason")
 load("//gleam/private:hex_resolution.bzl", "hex_declaration", "resolve_hex_packages")
 load("//gleam/private:manifest_toml.bzl", "parse_manifest_toml")
-load("//gleam/private:version.bzl", "parse_version")
+load("//gleam/private:version.bzl", "select_version")
 load(":repositories.bzl", "gleam_register_toolchains")
 
 _DEFAULT_NAME = "gleam"
@@ -235,17 +235,14 @@ def _toolchain_extension(module_ctx):
 
     # Register Gleam toolchains.
     for name, versions in registrations.items():
-        if len(versions) > 1:
-            selected = sorted(versions, key = parse_version, reverse = True)[0]
-
+        selection = select_version(versions)
+        if len(selection.distinct) > 1:
             # buildifier: disable=print
-            print("NOTE: gleam toolchain {} has multiple versions {}, selected {}".format(name, versions, selected))
-        else:
-            selected = versions[0]
+            print("NOTE: gleam toolchain {} has multiple versions {}, selected {}".format(name, selection.distinct, selection.selected))
 
         gleam_register_toolchains(
             name = name,
-            gleam_version = selected,
+            gleam_version = selection.selected,
         )
 
     # Register the Erlang toolchain repository. Hermetic by default (either the built-in

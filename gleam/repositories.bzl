@@ -5,7 +5,7 @@ MODULE.bazel via bazel_dep -- bzlmod is the only supported dependency mode.
 """
 
 load("//gleam/private:host_repo.bzl", "gleam_host_repo")
-load("//gleam/private:toolchains_repo.bzl", "PLATFORMS", "toolchains_repo")
+load("//gleam/private:toolchains_repo.bzl", "PLATFORMS", "gleam_tool_file", "toolchains_repo")
 load("//gleam/private:versions.bzl", "TOOL_VERSIONS")
 
 _DOC = "Fetch external tools needed for gleam toolchain"
@@ -41,12 +41,9 @@ package(default_visibility = ["//visibility:public"])
 
 gleam_toolchain(
     name = "gleam_toolchain",
-    target_tool = select({
-        "@bazel_tools//src/conditions:host_windows": "gleam.exe",
-        "//conditions:default": "gleam",
-    }),
+    target_tool = "{tool_file}",
 )
-"""
+""".format(tool_file = gleam_tool_file(platform))
 
     # Base BUILD file for this repository
     repository_ctx.file("BUILD.bazel", build_content)

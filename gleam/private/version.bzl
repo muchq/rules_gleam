@@ -34,3 +34,16 @@ def parse_version(version):
         else:
             parts.append(0)
     return parts
+
+def select_version(versions):
+    """Picks the highest of several requested versions.
+
+    Args:
+      versions: version strings requested by different modules; may repeat.
+
+    Returns:
+      A struct with `selected` (the highest version) and `distinct` (the unique requested
+      versions, highest first). More than one distinct version means modules disagree.
+    """
+    distinct = sorted({v: True for v in versions}.keys(), key = parse_version, reverse = True)
+    return struct(selected = distinct[0], distinct = distinct)
