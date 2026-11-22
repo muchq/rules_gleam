@@ -13,9 +13,11 @@ contribute to, not as a dependency to build critical infrastructure on yet. In p
 
 - **Erlang is hermetic by default.** Bazel downloads a prebuilt OTP release and uses it
   directly, rather than discovering Erlang/OTP on the host's `PATH`; it currently supports
-  Linux (glibc-linked, tied to a specific distro/version tag) and macOS, but not Windows. Pin a
-  specific `otp_version`/checksum with `gleam.erlang_toolchain(otp_version = "29.0.2")` in your
-  `MODULE.bazel` (see [examples/hermetic_erlang](examples/hermetic_erlang)), or opt back out to
+  Linux (glibc-linked, tied to a specific distro/version tag) and macOS, but not Windows. Every
+  download is checksum-verified. Pin a different release with
+  `gleam.erlang_toolchain(otp_version = ..., sha256 = {...})` in your `MODULE.bazel`, giving a
+  checksum per platform (see [docs/otp_checksums.md](docs/otp_checksums.md) and
+  [examples/hermetic_erlang](examples/hermetic_erlang)), or opt back out to
   PATH-based host discovery entirely with `gleam.local_erlang_toolchain()` (see
   [examples/nested_smoke](examples/nested_smoke)) if hermetic downloads aren't practical in
   your build environment.

@@ -20,11 +20,18 @@ gleam.hex_package(name = "gleeunit", version = "1.0.2", sha256 = "...", deps = [
 use_repo(gleam, "gleam_toolchains", "local_config_erlang", "gleam_packages")
 ```
 
-This already gets you a hermetic Erlang/OTP toolchain (see `_DEFAULT_HERMETIC_OTP_VERSION`
-below for the exact pinned version) with no further configuration. To pin a specific OTP
-release instead of the built-in default:
+This already gets you a hermetic, checksum-verified Erlang/OTP toolchain (see
+erlang/private/otp_checksums.bzl for the pinned version) with no further configuration. To pin
+a different OTP release, give a checksum for each platform you build on (see
+docs/otp_checksums.md):
 ```starlark
-gleam.erlang_toolchain(otp_version = "29.0.2")
+gleam.erlang_toolchain(
+    otp_version = "29.0.2",
+    sha256 = {
+        "ubuntu-22.04_amd64": "2e9d154a52de72653a1a3c1269b10df3b4ff5e058753e167bc92602681038e9a",
+        "macos_arm64": "ec6e09dee496adf646b0a22eef26b769e7f8032c83dd10292c58d50fb38e2210",
+    },
+)
 ```
 
 To opt out of the hermetic toolchain entirely and go back to discovering Erlang/OTP on the
@@ -53,24 +60,13 @@ bazel run @gleam_host//:gleam -- format
 
 load("//erlang/private:hermetic_erlang_repository.bzl", "hermetic_erlang_repository")  # buildifier: disable=bzl-visibility
 load("//erlang/private:local_erlang_repository.bzl", "local_erlang_repository")  # buildifier: disable=bzl-visibility
+load("//erlang/private:otp_checksums.bzl", "DEFAULT_OS_VERSION", "DEFAULT_OTP_VERSION")  # buildifier: disable=bzl-visibility
 load("//gleam/private:hex_package_policy.bzl", "unsupported_package_reason")
 load("//gleam/private:manifest_toml.bzl", "parse_manifest_toml")
 load("//gleam/private:version.bzl", "parse_version")
 load(":repositories.bzl", "gleam_register_toolchains")
 
 _DEFAULT_NAME = "gleam"
-
-# Used when Erlang is hermetic by default (no gleam.erlang_toolchain(...) call) -- see
-# erlang/private/hermetic_erlang_repository.bzl. Checksums below are the actual digests CI
-# observed downloading OTP-28.1 unverified (printed by hermetic_erlang_repository.bzl's own
-# NOTE: log line); platforms CI doesn't run on (linux_arm64, macos_amd64) are left unpinned
-# until a run on that platform observes them, same as any other platform's first use.
-_DEFAULT_HERMETIC_OTP_VERSION = "28.1"
-_DEFAULT_HERMETIC_OS_VERSION = "ubuntu-22.04"
-_DEFAULT_HERMETIC_SHA256 = {
-    "linux_amd64": "60c1083df707642f20831c762a68db191984314fef1d4d80b05bb8caf70b70bf",
-    "macos_arm64": "831fcfb46929c752abf0a921409a46b306e7019061653323fab7f0958ad4db25",
-}
 
 gleam_toolchain = tag_class(attrs = {
     "name": attr.string(doc = """\
@@ -103,10 +99,16 @@ Ignored on macOS. The Linux archives are glibc-linked and tied to a specific dis
 there is no portable musl-static build available from this origin.
 """, default = "ubuntu-22.04"),
     "sha256": attr.string_dict(doc = """\
-Optional map from "<os>_<arch>" (e.g. "linux_amd64", "linux_arm64", "macos_amd64",
-"macos_arm64") to the expected sha256 of that platform's OTP tarball. Platforms without an
-entry are downloaded unverified; the actual checksum is printed so it can be pinned.
+Map from "<distro>_<arch>" for Linux (e.g. "ubuntu-22.04_amd64", matching os_version) or
+"macos_<arch>" (e.g. "macos_arm64") to the expected sha256 of that OTP tarball. Required for
+every platform you build on unless the release is in the built-in table
+(erlang/private/otp_checksums.bzl); a missing checksum fails the fetch. See
+docs/otp_checksums.md.
 """, default = {}),
+    "allow_unverified_download": attr.bool(doc = """\
+Insecure: download platforms with no known checksum without verification, printing the
+observed digest. Only for bootstrapping a new release; never leave it set.
+""", default = False),
 })
 
 local_erlang_toolchain = tag_class(attrs = {}, doc = """\
@@ -163,6 +165,7 @@ def _toolchain_extension(module_ctx):
                 otp_version = hermetic.otp_version,
                 os_version = hermetic.os_version,
                 sha256 = hermetic.sha256,
+                allow_unverified_download = hermetic.allow_unverified_download,
             ))
 
         if mod.tags.local_erlang_toolchain:
@@ -276,15 +279,18 @@ def _toolchain_extension(module_ctx):
             otp_version = hermetic.otp_version
             os_version = hermetic.os_version
             sha256 = hermetic.sha256
+            allow_unverified_download = hermetic.allow_unverified_download
         else:
-            otp_version = _DEFAULT_HERMETIC_OTP_VERSION
-            os_version = _DEFAULT_HERMETIC_OS_VERSION
-            sha256 = _DEFAULT_HERMETIC_SHA256
+            otp_version = DEFAULT_OTP_VERSION
+            os_version = DEFAULT_OS_VERSION
+            sha256 = {}
+            allow_unverified_download = False
         hermetic_erlang_repository(
             name = "local_config_erlang",
             otp_version = otp_version,
             os_version = os_version,
             sha256 = sha256,
+            allow_unverified_download = allow_unverified_download,
         )
     else:
         if len(erlang_versions) > 1:
