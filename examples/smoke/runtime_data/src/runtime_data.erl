@@ -3,6 +3,5 @@
 
 read() ->
     file:read_file(filename:join([
-        os:getenv("TEST_SRCDIR"), os:getenv("TEST_WORKSPACE"),
-        "runtime_data/settings.txt"
+        os:getenv("GLEAM_RUNFILES_DIR"), "runtime_data/settings.txt"
     ])).

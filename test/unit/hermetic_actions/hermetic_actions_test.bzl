@@ -27,6 +27,7 @@ def _hermetic_actions_test_impl(ctx):
         asserts.true(env, "test/unit/hermetic_actions/dependency_data.txt" in paths, "test runfiles must include transitive dependency data")
         runner = [a for a in actions if a.mnemonic == "FileWrite"][0]
         asserts.true(env, "$TEST_SRCDIR/" in runner.content)
+        asserts.true(env, 'export GLEAM_RUNFILES_DIR="$TEST_SRCDIR/{}"'.format(ctx.workspace_name) in runner.content, "test launcher must export GLEAM_RUNFILES_DIR")
         asserts.false(env, ctx.bin_dir.path in runner.content, "test launcher must use runfiles paths")
     return analysistest.end(env)
 
@@ -48,7 +49,7 @@ def hermetic_actions_test_suite(name):
     gleam_library(
         name = "data_dependency",
         package_name = "data_dependency",
-        srcs = ["src/example.gleam"],
+        srcs = ["src/data_dependency.gleam"],
         data = ["dependency_data.txt"],
         tags = ["manual"],
     )
@@ -57,7 +58,6 @@ def hermetic_actions_test_suite(name):
         package_name = "example",
         srcs = ["src/example.gleam"],
         data = ["fixture_gleam.toml"],
-        deps = [":data_dependency"],
         tags = ["manual"],
     )
     gleam_binary(
@@ -71,7 +71,7 @@ def hermetic_actions_test_suite(name):
         package_name = "example",
         srcs = ["src/example.gleam"],
         test_srcs = ["test/example_test.gleam"],
-        deps = [":library"],
+        deps = [":data_dependency"],
         data = ["fixture_gleam.toml"],
         tags = ["manual"],
     )
