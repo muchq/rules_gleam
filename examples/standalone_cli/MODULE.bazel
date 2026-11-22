@@ -24,3 +24,5 @@ use_repo(gleam, "gleam_packages", "gleam_toolchains", "local_config_erlang")
 register_toolchains("@gleam_toolchains//:all")
 
 register_toolchains("@local_config_erlang//:erlang_toolchain_definition")
+
+bazel_dep(name = "rules_pkg", version = "1.3.0")

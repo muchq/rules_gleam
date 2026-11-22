@@ -17,6 +17,7 @@ managers bake absolute paths into generated scripts.
 
 load(":erlang_otp_tree.bzl", "find_erl_file")
 load(":gleam_library.bzl", "GleamPackageInfo")
+load(":release_launcher.bzl", "write_release_launcher")
 
 def _gleam_standalone_release_impl(ctx):
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
@@ -36,54 +37,12 @@ def _gleam_standalone_release_impl(ctx):
     erl_file = find_erl_file(otp_tree_files, ctx.label)
 
     dep_info = ctx.attr.dep[GleamPackageInfo]
-    entry_module = ctx.attr.entry_module
-    entry_function = ctx.attr.entry_function
 
     all_compiled_dirs = dep_info.transitive_compiled_dirs.to_list()
     all_data = dep_info.transitive_data.to_list()
 
-    launcher = ctx.actions.declare_file(ctx.label.name)
-
-    # At runtime, paths are relative to this launcher's own runfiles root (same convention as
-    # gleam_release), including the bundled erl binary itself -- see gleam_release.bzl for why
-    # "$RF/{ws}/{short_path}" is correct for both own-repo and external-repo (e.g. the hermetic
-    # Erlang toolchain's) files alike.
-    ws_name = ctx.workspace_name
-    pa_parts = []
-    for compiled_dir in all_compiled_dirs:
-        pa_parts.append('-pa "$RF/{ws}/{path}/ebin"'.format(ws = ws_name, path = compiled_dir.short_path))
-    pa_flags = " ".join(pa_parts)
-
-    ctx.actions.write(
-        output = launcher,
-        is_executable = True,
-        content = """#!/bin/bash
-# Standalone launcher for Gleam release: {label} -- bundles its own Erlang/OTP runtime, so
-# no Erlang needs to be installed on the machine that runs this.
-set -euo pipefail
-
-# Resolve this binary's own runfiles root -- see gleam_release.bzl for the same logic.
-if [[ -n "${{RUNFILES_DIR:-}}" && -d "${{RUNFILES_DIR:-}}" ]]; then
-  RF="$RUNFILES_DIR"
-elif [[ -d "$0.runfiles" ]]; then
-  RF="$0.runfiles"
-elif [[ -d "${{BASH_SOURCE[0]}}.runfiles" ]]; then
-  RF="${{BASH_SOURCE[0]}}.runfiles"
-else
-  echo "ERROR: could not locate the runfiles directory for {label}." >&2
-  exit 1
-fi
-
-exec "$RF/{ws}/{erl_path}" {pa_flags} -noshell -s {entry_module} {entry_function} -s init stop
-""".format(
-            label = ctx.label.name,
-            ws = ws_name,
-            erl_path = erl_file.short_path,
-            pa_flags = pa_flags,
-            entry_module = entry_module,
-            entry_function = entry_function,
-        ),
-    )
+    erl_invocation = '"$RF/{ws}/{path}"'.format(ws = ctx.workspace_name, path = erl_file.short_path)
+    launcher = write_release_launcher(ctx, erl_invocation, all_compiled_dirs)
 
     # Runfiles: all transitive compiled dirs + runtime data (same as gleam_release), plus the
     # entire bundled OTP tree -- this is what makes the result independent of any host Erlang.
@@ -126,9 +85,12 @@ Erlang via a PATH lookup.
 back to a PATH lookup under `gleam.local_erlang_toolchain()`. This rule instead requires the
 hermetic Erlang toolchain (on by default) and fails with an actionable error if
 `gleam.local_erlang_toolchain()` has opted back out to PATH-based discovery -- use this when
-you want that guarantee enforced rather than best-effort. Build once, copy the resulting
-runfiles tree to any machine with the same OS/CPU architecture, and run it with no setup
-required.
+you want that guarantee enforced. The bundled runtime still needs a compatible OS/CPU, ABI
+and system shared libraries. Linux builds are glibc/distro-specific, not musl/static binaries;
+macOS builds require a compatible macOS version. Validate the actual deployment image.
+
+Arguments, VM configuration, runtime data and shutdown follow the `gleam_release` contract.
+This is a launcher with a bundled runtime, not full OTP release management or hot upgrades.
 
 Like `gleam_release`, this does not attempt to start the package as an OTP application (no
 `application:ensure_all_started` call) -- call it yourself from `entry_module` if needed.

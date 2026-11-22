@@ -32,8 +32,9 @@ contribute to, not as a dependency to build critical infrastructure on yet. In p
   hermetic version by default), so running it on a machine whose Erlang/OTP is meaningfully
   older can fail with a BEAM-compatibility error. `gleam_release` and `gleam_standalone_release`
   don't have this problem under the hermetic toolchain (the default): both bundle the
-  toolchain's own OTP tree into their runfiles, so the result is genuinely portable to any
-  machine with the same OS/CPU architecture, no Erlang installed there required.
+  toolchain's own OTP tree into their runfiles. No host Erlang is needed, but the deployment
+  still needs compatible OS/CPU, ABI and system libraries. Linux builds are tied to the
+  selected glibc distribution; macOS builds require a compatible macOS version.
   `gleam_standalone_release` requires the hermetic toolchain outright (fails otherwise);
   `gleam_release` falls back to a PATH lookup (same caveat as `gleam_binary`) if
   `gleam.local_erlang_toolchain()` opts out of it. See
@@ -233,3 +234,65 @@ is not interpreted. Other packages need a dedicated Bazel build. For manual decl
 `build_tools` and `otp_app` may be supplied explicitly; otherwise the archive layout is checked.
 This is a bounded build contract, not general Hex/Rebar3 compatibility. Escript binaries still
 do not bundle runtime assets; use a release for packages that need `priv/`.
+
+### Release arguments and runtime data
+
+`gleam_release` and `gleam_standalone_release` call the entry function with zero arguments.
+Launcher arguments are forwarded after Erlang's `-extra`, preserving spaces, empty strings,
+quotes and leading `-`/`+` characters. Read them with `init:get_plain_arguments/0` (through
+Erlang FFI or an argv library). For example, `bazel run //:web_service_bin -- "two words"`
+passes one application argument. VM options belong in `ERL_AFLAGS`/`ERL_FLAGS`, such as
+`ERL_FLAGS='+S 2:2'`, or a file referenced by `ERL_FLAGS='-args_file /etc/service/vm.args'`.
+The VM parses these using [Erlang's argument syntax](https://www.erlang.org/doc/apps/erts/erl_cmd.html);
+the launcher does not evaluate them as shell code. Keep service VMs in the foreground.
+
+The launcher preserves the caller's working directory and exports `RUNFILES_DIR` as the
+absolute runfiles root and `GLEAM_RUNFILES_DIR` as its main-workspace directory. Read ordinary
+workspace `data` at `$GLEAM_RUNFILES_DIR/<workspace-relative-path>`. External repositories use
+Bazel's canonical repository directories alongside that workspace directory; those names
+are build-specific. Prefer package-owned `priv/` assets and `code:priv_dir/1` when a package
+must work across repositories. Both releases and `gleam_test` include transitive dependency
+data; tests also export `GLEAM_RUNFILES_DIR`.
+
+These are launchers, not full OTP release-management tools: they do not generate boot
+scripts, start applications automatically, implement hot upgrades, or supervise processes.
+Start needed OTP applications in your entry function. Returning from it stops the VM;
+services must keep it alive. The launcher uses `exec`, so exit status reaches the caller and
+SIGTERM reaches the VM, initiating OTP shutdown. Implement cleanup in your application's
+stop callbacks and configure a sufficient shutdown timeout in your service manager.
+
+### Deployment archives and containers
+
+Build `//:web_service_tar` in `examples/web_service`, or `//:standalone_cli_tar` in
+`examples/standalone_cli`, to produce a `.tar.gz`. These use
+[`rules_pkg`'s `pkg_tar`](https://bazelbuild.github.io/rules_pkg/latest.html#pkg_tar) with
+`include_runfiles = True` and `preserve_mode = True`. The archive contains the executable
+beside `<executable>.runfiles/`, including compiled code, transitive data and the bundled OTP
+runtime. Extract the whole archive into one directory and keep that relative layout. No
+Bazel installation, build-cache symlinks, or checkout is needed at runtime. Package files
+should be treated as read-only; put writable state outside the extracted tree.
+
+The bundled OTP is not statically linked. Match the build's OS/CPU and its runtime ABI and
+shared libraries; changing the container image does not cross-compile an archive. The default
+Linux OTP build targets Ubuntu 22.04/glibc. The example
+[Dockerfile](examples/web_service/Dockerfile) uses Ubuntu 22.04 and installs its runtime
+libraries (OpenSSL, ncurses/tinfo, libstdc++, zlib and CA certificates), with no Erlang package.
+Alpine/musl, distroless images and other distro versions are not implicitly supported.
+macOS artifacts require compatible macOS system libraries and any dependencies of the
+selected OTP build; they cannot be deployed in a Linux container.
+
+On a Linux build host matching the deployment CPU:
+
+```sh
+cd examples/web_service
+bazel build //:web_service_tar
+cp bazel-bin/web_service.tar.gz web_service.tar.gz
+docker build -t gleam-web-service .
+docker run --rm -p 34817:34817 gleam-web-service
+```
+
+The example runs as an unprivileged user with an exec-form entry point and SIGTERM shutdown.
+CI exercises both launcher archives after relocation on macOS and Linux, and in the
+Dockerfile's Linux runtime image, including SSL startup, config/assets, argument boundaries,
+startup failure and a real OTP application shutdown callback. Validate any different OTP
+version or deployment image against your application's requirements.

@@ -1,4 +1,4 @@
-load("@rules_gleam//gleam:defs.bzl", "gleam_format_test", "gleam_package", "gleam_release")
+load("@rules_gleam//gleam:defs.bzl", "gleam_format_test", "gleam_library", "gleam_package", "gleam_release")
 
 # gleam_package expands to:
 #  - a gleam_library "my_app_lib" (since entry_module is set, the library is not named
@@ -12,8 +12,25 @@ gleam_package(
     entry_module = "main",
     gleam_toml = "gleam.toml",
     test_deps = ["@gleam_packages//:gleeunit"],
-    test_srcs = glob(["test/**/*.gleam"]),
-    deps = ["@gleam_packages//:gleam_stdlib"],
+    test_srcs = glob([
+        "test/**/*.gleam",
+        "test/**/*.erl",
+    ]),
+    deps = [
+        ":runtime_data",
+        "@gleam_packages//:gleam_stdlib",
+    ],
+)
+
+# The test's only access to this config is through its dependency's runtime data.
+gleam_library(
+    name = "runtime_data",
+    package_name = "runtime_data",
+    srcs = ["runtime_data/src/runtime_data.erl"],
+    data = [
+        "runtime_data/gleam.toml",
+        "runtime_data/settings.txt",
+    ],
 )
 
 # Same entry point, packaged as a runfiles-tree binary instead of a single-file escript.

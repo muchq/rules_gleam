@@ -68,6 +68,11 @@ jobs:
           bazel test --test_output=errors //gleam_gazelle/...
       - name: Verify shared Hex dependencies across Bazel modules
         run: python3 test/integration/shared_hex.py
+      - name: Verify release archives after relocation
+        run: python3 test/integration/release_runtime.py
+      - name: Verify release archives in the deployment image
+        if: runner.os == 'Linux'
+        run: python3 test/integration/release_runtime.py --docker
       - name: Verify @gleam_host//:gleam is directly runnable
         run: |
           # gleam_host_repo (gleam/private/host_repo.bzl) detects the host platform without

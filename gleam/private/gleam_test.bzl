@@ -31,11 +31,13 @@ def _gleam_test_impl(ctx):
     # Collect dependency info.
     dep_infos = []
     transitive_dep_sets = []
+    transitive_data_sets = []
     for dep in ctx.attr.deps:
         if GleamPackageInfo in dep:
             dep_info = dep[GleamPackageInfo]
             dep_infos.append(dep_info)
             transitive_dep_sets.append(dep_info.transitive_compiled_dirs)
+            transitive_data_sets.append(dep_info.transitive_data)
 
     # All transitive dep dirs (flattened for inputs and -pa flags).
     all_dep_dirs = depset(transitive = transitive_dep_sets)
@@ -154,6 +156,7 @@ def _gleam_test_impl(ctx):
     script_lines = [
         "#!/bin/bash",
         "# Test runner for Gleam tests: " + ctx.label.name,
+        'export GLEAM_RUNFILES_DIR="$TEST_SRCDIR/{}"'.format(ws_name),
         "",
     ]
     if src_dir:
@@ -207,14 +210,16 @@ def _gleam_test_impl(ctx):
         [compiled_dir, runner_beam_dir] +
         all_dep_dirs.to_list() +
         list(ctx.files.test_srcs) +
-        list(ctx.files.data) +
         erlang_toolchain.tool_files.to_list()
     )
 
     return [
         DefaultInfo(
             executable = test_runner_script,
-            runfiles = ctx.runfiles(files = runfiles_files),
+            runfiles = ctx.runfiles(
+                files = runfiles_files,
+                transitive_files = depset(ctx.files.data, transitive = transitive_data_sets),
+            ),
         ),
     ]
 

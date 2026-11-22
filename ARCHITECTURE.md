@@ -87,6 +87,10 @@ Four layers, each catching a different class of regression:
    compilation/packaging actions using copied declared inputs, checks that OTP resolves its
    runtime inside that copy, and runs the test from copied runfiles without host Erlang on
    PATH. This catches accidental cache-path dependencies without requiring a remote executor.
+   `test/integration/release_runtime.py` extracts archives for both release rules and verifies
+   argument boundaries, VM flags, transitive config/assets, SSL startup, failure status and
+   graceful OTP shutdown. Linux CI repeats these checks in the web-service Dockerfile's
+   runtime image, which supplies the system libraries required by the selected OTP build.
 
 When adding a rule or macro with any non-trivial branching logic, prefer extracting the logic
 into a plain function and covering it with layer 1 first — it's the cheapest to write and the
