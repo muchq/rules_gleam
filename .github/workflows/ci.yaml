@@ -204,6 +204,19 @@ jobs:
             exit 1
           fi
           echo "PASS: gleam_test and gleam_format_test both correctly detected their intentionally-broken fixtures"
+      - name: Verify a wrong OTP checksum fails the fetch (examples/expect_fail_otp_checksum)
+        working-directory: examples/expect_fail_otp_checksum
+        run: |
+          if output="$(bazel build @local_config_erlang//... 2>&1)"; then
+            echo "FAIL: OTP download with a wrong sha256 was accepted" >&2
+            exit 1
+          fi
+          if ! grep -q "Checksum was .* but wanted 0000000000000000000000000000000000000000000000000000000000000000" <<<"$output"; then
+            echo "FAIL: fetch failed, but not with a checksum mismatch:" >&2
+            echo "$output" >&2
+            exit 1
+          fi
+          echo "PASS: wrong OTP checksum rejected"
       - name: Run Bazel Build - examples/hello_world Directory
         working-directory: examples/hello_world
         run: |

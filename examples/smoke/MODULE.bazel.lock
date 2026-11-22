@@ -218,7 +218,7 @@
   "moduleExtensions": {
     "@@muchq_rules_gleam+//gleam:extensions.bzl%gleam": {
       "general": {
-        "bzlTransitiveDigest": "XxTRAYQgYuodpaQAXN/c0+pocDRjve4kniadZsR3hNA=",
+        "bzlTransitiveDigest": "PSj2iPsne8hD1LAgXvZ41qTX0BZffOruYQy9oKEx1ho=",
         "usagesDigest": "Psd1GQ0SJn429hvMr3djNgmZCoLbPxrz+LyB22dVYvE=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
@@ -274,10 +274,8 @@
             "attributes": {
               "otp_version": "28.1",
               "os_version": "ubuntu-22.04",
-              "sha256": {
-                "linux_amd64": "60c1083df707642f20831c762a68db191984314fef1d4d80b05bb8caf70b70bf",
-                "macos_arm64": "831fcfb46929c752abf0a921409a46b306e7019061653323fab7f0958ad4db25"
-              }
+              "sha256": {},
+              "allow_unverified_download": false
             }
           },
           "gleam_packages": {

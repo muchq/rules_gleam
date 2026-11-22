@@ -1,0 +1,20 @@
+bazel_dep(name = "muchq_rules_gleam", version = "0.0.1", repo_name = "rules_gleam")
+local_path_override(
+    module_name = "muchq_rules_gleam",
+    path = "../..",
+)
+
+gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
+gleam.toolchain(version = "1.17.0")
+
+# Deliberately wrong checksums: fetching @local_config_erlang must fail verification.
+gleam.erlang_toolchain(
+    otp_version = "28.1",
+    sha256 = {
+        "ubuntu-22.04_amd64": "0000000000000000000000000000000000000000000000000000000000000000",
+        "ubuntu-22.04_arm64": "0000000000000000000000000000000000000000000000000000000000000000",
+        "macos_amd64": "0000000000000000000000000000000000000000000000000000000000000000",
+        "macos_arm64": "0000000000000000000000000000000000000000000000000000000000000000",
+    },
+)
+use_repo(gleam, "local_config_erlang")

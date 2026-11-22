@@ -13,17 +13,17 @@ gleam.toolchain(version = "1.17.0")
 # Erlang is hermetic by default; this pins a specific otp_version/checksum instead of
 # accepting the built-in default -- that's the whole point of this example. Deliberately a
 # *different* OTP release than the built-in default (currently 28.1, see
-# gleam/extensions.bzl's _DEFAULT_HERMETIC_OTP_VERSION) rather than just re-pinning the same
+# erlang/private/otp_checksums.bzl's DEFAULT_OTP_VERSION) rather than just re-pinning the same
 # one, so CI actually exercises a second OTP release end-to-end and can catch BEAM-compat
 # regressions across versions (gleam itself requires OTP 27.0+, so this can't go below that).
 # Confirmed available on both builds.hex.pm (Linux) and erlef/otp_builds (macOS) before
-# picking it. Both checksums below are what CI actually observed downloading this release
-# unverified (CI's macos-latest runner is Apple Silicon, hence macos_arm64 rather than
-# macos_amd64).
+# picking it. Checksums match the publishers' own digests (see docs/otp_checksums.md).
 gleam.erlang_toolchain(
     otp_version = "29.0.2",
     sha256 = {
-        "linux_amd64": "2e9d154a52de72653a1a3c1269b10df3b4ff5e058753e167bc92602681038e9a",
+        "ubuntu-22.04_amd64": "2e9d154a52de72653a1a3c1269b10df3b4ff5e058753e167bc92602681038e9a",
+        "ubuntu-22.04_arm64": "062e79d686ed3e760fb28704cc0112928aaa81fe069ba02547f9cdf253409ecc",
+        "macos_amd64": "3da4495ce6372f5fda002ed1ae45832a11e05aaa9928790e0bf1d14e3ee84657",
         "macos_arm64": "ec6e09dee496adf646b0a22eef26b769e7f8032c83dd10292c58d50fb38e2210",
     },
 )
