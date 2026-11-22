@@ -7,6 +7,7 @@ erlang_otp_tree_test.bzl uses for File objects via `_fake_file`.
 
 load("@bazel_skylib//lib:unittest.bzl", "analysistest", "asserts", "unittest")
 load("//gleam/private:host_repo.bzl", "host_platform")  # buildifier: disable=bzl-visibility
+load("//gleam/private:toolchains_repo.bzl", "PLATFORMS", "gleam_tool_file")  # buildifier: disable=bzl-visibility
 
 def _fake_repository_ctx(os_name, os_arch):
     return struct(os = struct(name = os_name, arch = os_arch))
@@ -104,6 +105,26 @@ _unsupported_os_lookup_rule = rule(implementation = _unsupported_os_lookup_impl)
 
 _fails_on_unsupported_os_test = analysistest.make(_fails_on_unsupported_os_test_impl, expect_failure = True)
 
+# gleam_tool_file: the executable name each platform's toolchain repo points at.
+
+def _tool_file_per_platform_test_impl(ctx):
+    env = unittest.begin(ctx)
+    asserts.equals(
+        env,
+        {
+            "aarch64-apple-darwin": "gleam",
+            "aarch64-unknown-linux-gnu": "gleam",
+            "x86_64-apple-darwin": "gleam",
+            "x86_64-pc-windows-msvc": "gleam.exe",
+            "x86_64-unknown-linux-gnu": "gleam",
+        },
+        {platform: gleam_tool_file(platform) for platform in PLATFORMS},
+        "gleam_tool_file(platform) for every PLATFORMS entry",
+    )
+    return unittest.end(env)
+
+tool_file_per_platform_test = unittest.make(_tool_file_per_platform_test_impl)
+
 def host_repo_test_suite(name):
     """Registers all host_repo unit tests as a single test_suite target.
 
@@ -129,6 +150,7 @@ def host_repo_test_suite(name):
         resolves_linux_amd64_alternate_spelling_test,
         resolves_macos_amd64_alternate_spelling_test,
         resolves_windows_regardless_of_arch_test,
+        tool_file_per_platform_test,
     )
     native.test_suite(
         name = name,

@@ -1,7 +1,7 @@
 """Unit tests for gleam/private/version.bzl's parse_version."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//gleam/private:version.bzl", "parse_version")  # buildifier: disable=bzl-visibility
+load("//gleam/private:version.bzl", "parse_version", "select_version")  # buildifier: disable=bzl-visibility
 
 def _parses_simple_version_test_impl(ctx):
     env = unittest.begin(ctx)
@@ -37,6 +37,32 @@ def _sorts_numerically_not_lexically_test_impl(ctx):
 
 sorts_numerically_not_lexically_test = unittest.make(_sorts_numerically_not_lexically_test_impl)
 
+# select_version: gleam.toolchain registrations from several modules.
+
+def _same_version_from_two_modules_is_not_a_conflict_test_impl(ctx):
+    env = unittest.begin(ctx)
+    selection = select_version(["1.17.0", "1.17.0"])
+    asserts.equals(env, struct(selected = "1.17.0", distinct = ["1.17.0"]), selection, "select_version([1.17.0, 1.17.0])")
+    return unittest.end(env)
+
+same_version_from_two_modules_is_not_a_conflict_test = unittest.make(_same_version_from_two_modules_is_not_a_conflict_test_impl)
+
+def _different_versions_pick_highest_test_impl(ctx):
+    env = unittest.begin(ctx)
+    selection = select_version(["1.9.0", "1.17.0", "1.9.0"])
+    asserts.equals(env, struct(selected = "1.17.0", distinct = ["1.17.0", "1.9.0"]), selection, "select_version([1.9.0, 1.17.0, 1.9.0])")
+    return unittest.end(env)
+
+different_versions_pick_highest_test = unittest.make(_different_versions_pick_highest_test_impl)
+
+def _single_version_is_selected_test_impl(ctx):
+    env = unittest.begin(ctx)
+    selection = select_version(["1.17.0"])
+    asserts.equals(env, struct(selected = "1.17.0", distinct = ["1.17.0"]), selection, "select_version([1.17.0])")
+    return unittest.end(env)
+
+single_version_is_selected_test = unittest.make(_single_version_is_selected_test_impl)
+
 def version_test_suite(name):
     unittest.suite(
         name,
@@ -44,4 +70,7 @@ def version_test_suite(name):
         parses_single_component_version_test,
         strips_prerelease_suffix_test,
         sorts_numerically_not_lexically_test,
+        single_version_is_selected_test,
+        same_version_from_two_modules_is_not_a_conflict_test,
+        different_versions_pick_highest_test,
     )
