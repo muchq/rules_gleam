@@ -33,6 +33,7 @@ bzl_library(
     deps = [
         ":erlang_otp_tree",
         ":gleam_library",
+        ":release_launcher",
     ],
 )
 
@@ -43,6 +44,7 @@ bzl_library(
     deps = [
         ":erlang_otp_tree",
         ":gleam_library",
+        ":release_launcher",
     ],
 )
 
@@ -120,6 +122,13 @@ bzl_library(
 bzl_library(
     name = "package_files",
     srcs = ["package_files.bzl"],
+    visibility = ["//gleam:__subpackages__"],
+    deps = ["@bazel_skylib//lib:shell"],
+)
+
+bzl_library(
+    name = "release_launcher",
+    srcs = ["release_launcher.bzl"],
     visibility = ["//gleam:__subpackages__"],
     deps = ["@bazel_skylib//lib:shell"],
 )

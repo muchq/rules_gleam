@@ -11,14 +11,13 @@ escript alternative, better suited to portable CLI tools that don't need bundled
 
 load(":erlang_otp_tree.bzl", "resolve_erl_invocation")
 load(":gleam_library.bzl", "GleamPackageInfo")
+load(":release_launcher.bzl", "write_release_launcher")
 
 def _gleam_release_impl(ctx):
     gleam_toolchain_info = ctx.toolchains["//gleam:toolchain_type"]
     erlang_toolchain = gleam_toolchain_info.erlang_toolchain
 
     dep_info = ctx.attr.dep[GleamPackageInfo]
-    entry_module = ctx.attr.entry_module
-    entry_function = ctx.attr.entry_function
 
     all_compiled_dirs = dep_info.transitive_compiled_dirs.to_list()
     all_data = dep_info.transitive_data.to_list()
@@ -34,46 +33,7 @@ def _gleam_release_impl(ctx):
     # test/unit/erlang_otp_tree, without needing a full toolchain-dependent build to exercise.
     erl_invocation, extra_runfiles = resolve_erl_invocation(otp_tree_files, ws_name, ctx.label)
 
-    launcher = ctx.actions.declare_file(ctx.label.name)
-
-    # At runtime, paths are relative to this launcher's own runfiles root, joined with the
-    # workspace name (matching how gleam_test locates -pa paths under $TEST_SRCDIR/$WORKSPACE).
-    pa_parts = []
-    for compiled_dir in all_compiled_dirs:
-        pa_parts.append('-pa "$RF/{ws}/{path}/ebin"'.format(ws = ws_name, path = compiled_dir.short_path))
-    pa_flags = " ".join(pa_parts)
-
-    ctx.actions.write(
-        output = launcher,
-        is_executable = True,
-        content = """#!/bin/bash
-# Launcher for Gleam release: {label}
-set -euo pipefail
-
-# Resolve this binary's own runfiles root, whether invoked via `bazel run`, run directly
-# after `bazel build` (Bazel places a "<binary>.runfiles" directory next to the output),
-# or as a dependency of another runfiles-aware binary. This only covers the Unix layout
-# (symlinked runfiles tree); Windows is not supported here.
-if [[ -n "${{RUNFILES_DIR:-}}" && -d "${{RUNFILES_DIR:-}}" ]]; then
-  RF="$RUNFILES_DIR"
-elif [[ -d "$0.runfiles" ]]; then
-  RF="$0.runfiles"
-elif [[ -d "${{BASH_SOURCE[0]}}.runfiles" ]]; then
-  RF="${{BASH_SOURCE[0]}}.runfiles"
-else
-  echo "ERROR: could not locate the runfiles directory for {label}." >&2
-  exit 1
-fi
-
-exec {erl_invocation} {pa_flags} -noshell -s {entry_module} {entry_function} -s init stop
-""".format(
-            label = ctx.label.name,
-            erl_invocation = erl_invocation,
-            pa_flags = pa_flags,
-            entry_module = entry_module,
-            entry_function = entry_function,
-        ),
-    )
+    launcher = write_release_launcher(ctx, erl_invocation, all_compiled_dirs)
 
     # Runfiles: all transitive compiled dirs (for -pa) plus all transitive runtime data, so
     # code can read data files at paths relative to its own package (see the "data" attr on
@@ -114,8 +74,9 @@ launcher script plus the compiled BEAM directories and any declared runtime `dat
 runfiles directory.
 
 Under the hermetic Erlang toolchain (the default), this bundles the toolchain's own OTP tree
-into the release's runfiles, so the result is genuinely portable to any machine with the same
-OS/CPU architecture -- no Erlang needs to be installed there. Under
+into the release's runfiles. No host Erlang is needed, but the runtime still requires a
+compatible OS/CPU, ABI and system shared libraries (Linux builds are glibc/distro-specific;
+macOS builds require a compatible macOS version). Under
 `gleam.local_erlang_toolchain()`'s PATH-based discovery, there is no such tree to bundle, so
 the launcher falls back to a plain PATH lookup for `erl` at run time (the same portability
 model as `gleam_binary`'s escript): whatever Erlang built this must also be reasonably
@@ -128,6 +89,16 @@ result is a launcher script that must be run alongside its `.runfiles` directory
 `bazel run` does automatically, and as a `bazel build`-produced binary does when invoked
 directly). This is the tradeoff for being able to ship `data` at all: escript archives
 don't compose with Bazel's runfiles model.
+
+Application arguments are forwarded after `-extra` with their boundaries preserved. Read
+these strings with `init:get_plain_arguments/0` (the entry function remains zero-arity).
+Configure the VM with Erlang's `ERL_AFLAGS`/`ERL_FLAGS` or an `-args_file`, not application argv.
+`GLEAM_RUNFILES_DIR` names the absolute main-workspace data root; prefer `code:priv_dir/1`
+for package-owned `priv/` assets. The launcher preserves the caller's working directory.
+
+These launchers are not full OTP releases: no boot-script generation, release_handler hot
+upgrades, or service supervision is provided. The VM receives signals directly; SIGTERM
+initiates OTP shutdown, and application cleanup must be implemented by the application.
 
 Does not attempt to start the package as an OTP application (no `application:ensure_all_started`
 call) -- call it yourself from `entry_module` if your package needs it.

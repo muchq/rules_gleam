@@ -1,4 +1,5 @@
 load("@rules_gleam//gleam:defs.bzl", "gleam_library", "gleam_standalone_release")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 
 gleam_library(
     name = "standalone_cli_lib",
@@ -15,4 +16,15 @@ gleam_standalone_release(
     name = "standalone_cli",
     dep = ":standalone_cli_lib",
     entry_module = "main",
+)
+
+# Deployable launcher plus its complete, materialized runfiles tree.
+pkg_tar(
+    name = "standalone_cli_tar",
+    srcs = [":standalone_cli"],
+    out = "standalone_cli.tar.gz",
+    allow_duplicates_with_different_content = False,
+    extension = "tar.gz",
+    include_runfiles = True,
+    preserve_mode = True,
 )

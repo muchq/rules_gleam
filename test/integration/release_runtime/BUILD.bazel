@@ -1,0 +1,51 @@
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("//gleam:defs.bzl", "gleam_library", "gleam_release", "gleam_standalone_release")
+
+gleam_library(
+    name = "assets",
+    package_name = "runtime_assets",
+    srcs = ["assets/src/runtime_assets.erl"],
+    data = [
+        "assets/gleam.toml",
+        "assets/priv/message.txt",
+        "assets/settings.config",
+    ],
+)
+
+gleam_library(
+    name = "fixture",
+    package_name = "release_fixture",
+    srcs = ["src/release_fixture.erl"],
+    data = ["gleam.toml"],
+    deps = [":assets"],
+)
+
+gleam_release(
+    name = "release",
+    dep = ":fixture",
+    entry_module = "release_fixture",
+)
+
+gleam_standalone_release(
+    name = "standalone",
+    dep = ":fixture",
+    entry_module = "release_fixture",
+)
+
+pkg_tar(
+    name = "release_tar",
+    srcs = [":release"],
+    allow_duplicates_with_different_content = False,
+    extension = "tar.gz",
+    include_runfiles = True,
+    preserve_mode = True,
+)
+
+pkg_tar(
+    name = "standalone_tar",
+    srcs = [":standalone"],
+    allow_duplicates_with_different_content = False,
+    extension = "tar.gz",
+    include_runfiles = True,
+    preserve_mode = True,
+)

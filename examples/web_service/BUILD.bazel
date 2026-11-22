@@ -1,4 +1,5 @@
 load("@rules_gleam//gleam:defs.bzl", "gleam_package", "gleam_release")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 
 _DEPS = [
@@ -43,4 +44,15 @@ sh_test(
     srcs = ["e2e_test.sh"],
     data = [":web_service_bin"],
     tags = ["requires-network"],
+)
+
+# Deployable launcher plus its complete, materialized runfiles tree.
+pkg_tar(
+    name = "web_service_tar",
+    srcs = [":web_service_bin"],
+    out = "web_service.tar.gz",
+    allow_duplicates_with_different_content = False,
+    extension = "tar.gz",
+    include_runfiles = True,
+    preserve_mode = True,
 )
