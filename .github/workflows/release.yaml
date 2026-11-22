@@ -10,6 +10,8 @@ on:
     secrets:
       publish_token:
         required: true
+      BCR_PUBLISH_TOKEN:
+        required: false
   # Or, developers can manually push a tag from their clone
   push:
     tags:

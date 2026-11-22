@@ -11,6 +11,8 @@ on:
     secrets:
       publish_token:
         required: true
+      BCR_PUBLISH_TOKEN:
+        required: false
   # In case of problems, let release engineers retry by manually dispatching
   # the workflow from the GitHub UI
   workflow_dispatch:

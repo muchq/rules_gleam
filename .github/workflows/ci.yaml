@@ -249,6 +249,7 @@ jobs:
         working-directory: examples/standalone_cli
         run: |
           artifact="$(mktemp -d)"
+          chmod 755 "$artifact"
           tar -xzf bazel-bin/standalone_cli.tar.gz -C "$artifact"
           output=$(docker run --rm --user 65532:65532 -v "$artifact:/artifact:ro" --entrypoint /artifact/standalone_cli rules-gleam-runtime-test)
           expected="Hello from a standalone release with no host Erlang required!"
