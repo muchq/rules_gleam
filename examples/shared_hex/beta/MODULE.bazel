@@ -1,0 +1,10 @@
+module(
+    name = "beta",
+    version = "1.0.0",
+)
+
+bazel_dep(name = "muchq_rules_gleam", version = "0.0.1", repo_name = "rules_gleam")
+
+gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
+gleam.hex_manifest(manifest = "//:manifest.toml")
+use_repo(gleam, "gleam_packages")

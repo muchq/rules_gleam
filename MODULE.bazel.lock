@@ -253,7 +253,7 @@
   "moduleExtensions": {
     "//gleam:extensions.bzl%gleam": {
       "general": {
-        "bzlTransitiveDigest": "PSj2iPsne8hD1LAgXvZ41qTX0BZffOruYQy9oKEx1ho=",
+        "bzlTransitiveDigest": "424k8Vy+inLg98MlSlpbNbyiQ09lobuyFoZFzGKA5II=",
         "usagesDigest": "Al5AO0O6rLM/jChMKgO+jQL9Vj0dHjeazfWf2O4mkaw=",
         "recordedInputs": [],
         "generatedRepoSpecs": {

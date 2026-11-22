@@ -62,6 +62,7 @@ load("//erlang/private:hermetic_erlang_repository.bzl", "hermetic_erlang_reposit
 load("//erlang/private:local_erlang_repository.bzl", "local_erlang_repository")  # buildifier: disable=bzl-visibility
 load("//erlang/private:otp_checksums.bzl", "DEFAULT_OS_VERSION", "DEFAULT_OTP_VERSION")  # buildifier: disable=bzl-visibility
 load("//gleam/private:hex_package_policy.bzl", "unsupported_package_reason")
+load("//gleam/private:hex_resolution.bzl", "hex_declaration", "resolve_hex_packages")
 load("//gleam/private:manifest_toml.bzl", "parse_manifest_toml")
 load("//gleam/private:version.bzl", "parse_version")
 load(":repositories.bzl", "gleam_register_toolchains")
@@ -119,6 +120,7 @@ the hermetic toolchain doesn't support. Mutually exclusive with gleam.erlang_too
 """)
 
 hex_package = tag_class(attrs = {
+    "override": attr.bool(doc = "Root-only explicit replacement of all declarations for this package. Supply the complete selected version, checksum, dependencies and build policy. Same-version checksum conflicts still fail."),
     "build_tools": attr.string_list(doc = "Declared Hex build tools; empty means infer from archive layout."),
     "otp_app": attr.string(doc = "OTP application name; defaults to the Hex package name."),
     "allow_plain_erlang": attr.bool(doc = "Explicitly compile an audited Erlang-only package without interpreting its Rebar3 configuration."),
@@ -136,30 +138,21 @@ found next to gleam.toml). Its resolved packages -- name, version, transitive re
 and outer_checksum -- are parsed and registered exactly as if each had been declared with its
 own gleam.hex_package(...) call, eliminating the need to hand-maintain the transitive
 dependency graph and checksums. Only entries with source = "hex" are included; git- or
-path-sourced packages are skipped with a printed warning, since only Hex-hosted tarballs are
-supported.
+path-sourced packages cause an error. Supply non-Hex packages as local gleam_library targets
+and wire their deps explicitly instead of importing that manifest.
 """, allow_single_file = True, mandatory = True),
 })
 
 def _toolchain_extension(module_ctx):
     registrations = {}
-    packages = []
-    package_sources = {}  # package name -> "gleam.hex_package(...)" or the manifest label, for conflict errors
+    declarations = []
     erlang_versions = []
     hermetic_erlang_toolchains = []
     local_erlang_requested = False
 
-    def _add_package(name, version, sha256, deps, source_desc, build_tools, otp_app, allow_plain_erlang):
-        if name in package_sources:
-            fail((
-                "Hex package '{name}' is declared twice: once via {first}, and again via " +
-                "{second}. Remove one of the declarations."
-            ).format(name = name, first = package_sources[name], second = source_desc))
-        package_sources[name] = source_desc
-        packages.append(struct(name = name, version = version, sha256 = sha256, deps = deps, build_tools = build_tools, otp_app = otp_app or name, allow_plain_erlang = allow_plain_erlang))
-
     # Collect toolchain registrations and hex packages from all modules.
     for mod in module_ctx.modules:
+        module_desc = "{} module {}@{}".format("root" if mod.is_root else "dependency", mod.name or "<unnamed>", mod.version or "<unversioned>")
         for hermetic in mod.tags.erlang_toolchain:
             hermetic_erlang_toolchains.append(struct(
                 otp_version = hermetic.otp_version,
@@ -193,7 +186,7 @@ def _toolchain_extension(module_ctx):
                 )
                 fail(msg.format(name = pkg.name, version = pkg.version))
 
-            _add_package(
+            declarations.append(hex_declaration(
                 name = pkg.name,
                 version = pkg.version,
                 sha256 = pkg.sha256,
@@ -201,8 +194,10 @@ def _toolchain_extension(module_ctx):
                 build_tools = pkg.build_tools,
                 otp_app = pkg.otp_app,
                 allow_plain_erlang = pkg.allow_plain_erlang,
-                source_desc = "gleam.hex_package(name = \"{}\")".format(pkg.name),
-            )
+                source = module_desc + " via " + "gleam.hex_package(name = \"{}\")".format(pkg.name),
+                is_root = mod.is_root,
+                override = pkg.override,
+            ))
 
         for manifest_tag in mod.tags.hex_manifest:
             manifest_label = str(manifest_tag.manifest)
@@ -210,19 +205,20 @@ def _toolchain_extension(module_ctx):
             content = module_ctx.read(manifest_path)
             for pkg in parse_manifest_toml(content):
                 if pkg.source != "hex":
-                    # buildifier: disable=print
-                    print((
-                        "NOTE: skipping manifest.toml package '{name}' from {manifest} " +
-                        "(source = \"{source}\"): only source = \"hex\" packages are supported."
-                    ).format(name = pkg.name, manifest = manifest_label, source = pkg.source))
-                    continue
+                    fail((
+                        "Unsupported manifest package '{name}' from {module} via {manifest} " +
+                        "(source = \"{source}\"). Only Hex packages can be imported. " +
+                        "Define git/path packages as local gleam_library targets and wire their deps " +
+                        "explicitly in BUILD.bazel; declare the remaining Hex packages with " +
+                        "gleam.hex_package(...) instead of importing this manifest."
+                    ).format(name = pkg.name, module = module_desc, manifest = manifest_label, source = pkg.source))
                 if not pkg.sha256:
                     fail((
                         "manifest.toml package '{name}' in {manifest} has source = \"hex\" but " +
                         "no outer_checksum. Regenerate manifest.toml with `gleam deps download`."
                     ).format(name = pkg.name, manifest = manifest_label))
 
-                _add_package(
+                declarations.append(hex_declaration(
                     name = pkg.name,
                     version = pkg.version,
                     sha256 = pkg.sha256,
@@ -230,8 +226,12 @@ def _toolchain_extension(module_ctx):
                     build_tools = pkg.build_tools,
                     otp_app = pkg.otp_app,
                     allow_plain_erlang = pkg.name in manifest_tag.plain_erlang_packages,
-                    source_desc = "gleam.hex_manifest(manifest = \"{}\")".format(manifest_label),
-                )
+                    source = module_desc + " via " + "gleam.hex_manifest(manifest = \"{}\")".format(manifest_label),
+                    is_root = mod.is_root,
+                ))
+
+    # Validate the complete selected graph before generating any repositories.
+    packages = resolve_hex_packages(declarations)
 
     # Register Gleam toolchains.
     for name, versions in registrations.items():
