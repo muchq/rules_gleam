@@ -12,6 +12,7 @@ on:
       publish_token:
         required: true
       BCR_PUBLISH_TOKEN:
+        # Fallback for manual dispatch; reusable callers pass publish_token.
         required: false
   # In case of problems, let release engineers retry by manually dispatching
   # the workflow from the GitHub UI

@@ -68,16 +68,19 @@ class ReleaseTest(unittest.TestCase):
 
     def test_invalid_tags_are_rejected(self):
         for tag in ["main", "1.2.3", "v1.2", "v1.2.3/../../bad"]:
-            with self.subTest(tag=tag), self.assertRaises(ValueError):
-                release_names(tag)
+            with self.subTest(tag=tag):
+                with self.assertRaises(ValueError) as raised:
+                    release_names(tag)
+                self.assertEqual(str(raised.exception), f"Expected a version tag such as v1.2.3 or v1.2.3-rc1, got {tag!r}")
 
     def test_archive_excluding_bcr_smoke_module_is_rejected(self):
         (self.repo / ".gitattributes").write_text("examples export-ignore\n")
         self.git("add", ".gitattributes")
         self.git("-c", "user.name=Release test", "-c", "user.email=test@example.invalid",
                  "commit", "-qm", "exclude required test module")
-        with self.assertRaisesRegex(ValueError, "must include the BCR smoke test module"):
+        with self.assertRaises(ValueError) as raised:
             build_archive("v1.2.3", "HEAD", self.root / "out")
+        self.assertEqual(str(raised.exception), "Source archive must include the BCR smoke test module")
 
     def test_mismatched_archive_metadata_is_rejected_before_bazel_runs(self):
         archive = build_archive("v1.2.3-rc1", "refs/tags/v1.2.3-rc1", self.root / "out")

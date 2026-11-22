@@ -251,6 +251,7 @@ jobs:
           artifact="$(mktemp -d)"
           chmod 755 "$artifact"
           tar -xzf bazel-bin/standalone_cli.tar.gz -C "$artifact"
+          # Built earlier by the release_runtime.py --docker integration step.
           output=$(docker run --rm --user 65532:65532 -v "$artifact:/artifact:ro" --entrypoint /artifact/standalone_cli rules-gleam-runtime-test)
           expected="Hello from a standalone release with no host Erlang required!"
           if [[ "$output" != "$expected" ]]; then
