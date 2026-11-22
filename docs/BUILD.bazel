@@ -2,7 +2,7 @@
 # so that the dependency on stardoc doesn't leak to them.
 load("@aspect_bazel_lib//lib:docs.bzl", "stardoc_with_diff_test", "update_docs")
 
-# `bazel test //docs:rules_test` checks that rules.md is up to date with the public API in
+# `bazel test //docs:update_test` checks that rules.md is up to date with the public API in
 # //gleam:defs.bzl. If it fails, run `bazel run //docs:update` to regenerate it.
 stardoc_with_diff_test(
     name = "rules",

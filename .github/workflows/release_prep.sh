@@ -1,43 +1,33 @@
 #!/usr/bin/env bash
-
 set -o errexit -o nounset -o pipefail
 
-# Argument provided by reusable workflow caller, see
-# https://github.com/bazel-contrib/.github/blob/d197a6427c5435ac22e56e33340dff912bc9334e/.github/workflows/release_ruleset.yaml#L72
-TAG=$1
-# The prefix is chosen to match what GitHub generates for source archives
-# This guarantees that users can easily switch from a released artifact to a source archive
-# with minimal differences in their code (e.g. strip_prefix remains the same)
-PREFIX="rules_gleam-${TAG:1}"
-ARCHIVE="rules_gleam-$TAG.tar.gz"
+TAG=${1:?Usage: release_prep.sh vVERSION}
+ARCHIVE="rules_gleam-${TAG}.tar.gz"
+PREFIX="rules_gleam-${TAG#v}"
 
-# NB: configuration for 'git archive' is in /.gitattributes
-git archive --format=tar --prefix=${PREFIX}/ ${TAG} | gzip > $ARCHIVE
-SHA=$(shasum -a 256 $ARCHIVE | awk '{print $1}')
+# The reusable workflow uploads only after this script succeeds. Validate the exact
+# version-stamped bytes, including the shipped BCR module and a fresh README consumer.
+python3 .github/workflows/release_archive.py "$TAG" >&2
+python3 .github/workflows/release_validate.py "$ARCHIVE" "$TAG" >&2
+SHA=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
 
-cat << EOF
-## Using Bzlmod with Bazel 6 or greater
+cat <<EOF_NOTES
+## Installation (Bazel 9.3.3, Bzlmod)
 
-1. (Bazel 6 only) Enable with \`common --enable_bzlmod\` in \`.bazelrc\`.
-2. Add to your \`MODULE.bazel\` file:
+Add to \`MODULE.bazel\`. The alias matches the README's \`@rules_gleam\` loads.
+The archive override works before this version is available in BCR; remove it once
+BCR publishes the version. WORKSPACE setup is not supported.
 
 \`\`\`starlark
-bazel_dep(name = "muchq_rules_gleam", version = "${TAG:1}")
-\`\`\`
-
-## Using WORKSPACE
-
-Paste this snippet into your \`WORKSPACE.bazel\` file:
-
-\`\`\`starlark
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-http_archive(
-    name = "muchq_rules_gleam",
+bazel_dep(name = "muchq_rules_gleam", version = "${TAG#v}", repo_name = "rules_gleam")
+archive_override(
+    module_name = "muchq_rules_gleam",
+    urls = ["https://github.com/muchq/rules_gleam/releases/download/${TAG}/${ARCHIVE}"],
     sha256 = "${SHA}",
     strip_prefix = "${PREFIX}",
-    url = "https://github.com/muchq/rules_gleam/releases/download/${TAG}/${ARCHIVE}",
 )
-EOF
+\`\`\`
 
-awk 'f;/--SNIP--/{f=1}' examples/smoke/WORKSPACE.bazel
-echo "\`\`\`"
+The source archive, shipped smoke module, and README quick start passed release validation.
+See the README for compiler/runtime toolchain registration and supported platforms.
+EOF_NOTES

@@ -1,8 +1,8 @@
 bcr_test_module:
   module_path: "examples/smoke"
   matrix:
-    platform: ["debian10", "macos", "ubuntu2004", "windows"]
-    bazel: ["9.x"]
+    platform: ["ubuntu2204", "macos_arm64"]
+    bazel: ["9.3.3"]
   tasks:
     run_tests:
       name: "Run test module"

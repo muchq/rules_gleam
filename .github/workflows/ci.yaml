@@ -62,6 +62,12 @@ jobs:
         run: |
           echo "Running Starlark unit tests for private rule/module-extension helpers"
           bazel test --test_output=errors //test/...
+      - name: Test source release packaging and publication gate
+        run: python3 -m unittest discover -s test/release -v
+      - name: Validate the actual source archive and README consumer
+        run: |
+          python3 .github/workflows/release_archive.py v0.0.0-ci --ref HEAD --output-dir "$RUNNER_TEMP/source-release"
+          python3 .github/workflows/release_validate.py "$RUNNER_TEMP/source-release/rules_gleam-v0.0.0-ci.tar.gz" v0.0.0-ci
       - name: Run Bazel Tests - gleam_gazelle Directory (Gazelle language extension)
         run: |
           echo "Running the gleam Gazelle language extension's Go unit tests"
@@ -141,24 +147,17 @@ jobs:
         run: |
           echo "Running tests in examples/web_service directory"
           bazel test --test_output=errors //...
-      - name: Verify examples/web_service's gleam_release on a fresh, Erlang-free machine (Docker)
-        # GitHub's macOS runners can't run Linux containers, so this Docker-based proof only
-        # runs on Linux. The build+test steps above still cover macOS; they just can't prove
-        # portability to a machine that never had Erlang installed the same way Docker does.
+      - name: Verify the web-service archive in the final application image
         if: runner.os == 'Linux'
         working-directory: examples/web_service
         run: |
-          # Same rationale as examples/standalone_cli: gleam_release also bundles the
-          # hermetic toolchain's OTP tree now, so it should be just as portable. Prove it on
-          # a genuinely fresh Docker container with no Erlang installed, not just this
-          # machine with PATH tricks.
-          bazel build //:web_service_bin
-          rm -rf /tmp/portable_web_service
-          mkdir -p /tmp/portable_web_service
-          cp -L bazel-bin/web_service_bin /tmp/portable_web_service/web_service_bin
-          cp -rL bazel-bin/web_service_bin.runfiles /tmp/portable_web_service/web_service_bin.runfiles
-
-          container_id=$(docker run -d --rm -p 34817:34817 -v /tmp/portable_web_service:/artifact:ro ubuntu:24.04 /artifact/web_service_bin)
+          bazel build //:web_service_tar
+          context="$(mktemp -d)"
+          cp bazel-bin/web_service.tar.gz "$context/web_service.tar.gz"
+          cp Dockerfile "$context/Dockerfile"
+          docker build -t rules-gleam-web-service "$context"
+          # Use the Dockerfile's final USER and ENTRYPOINT, with no checkout mounted.
+          container_id=$(docker run -d --rm -p 34817:34817 rules-gleam-web-service)
           trap 'docker stop "$container_id" >/dev/null 2>&1 || true' EXIT
 
           url="http://localhost:34817/"
@@ -245,23 +244,19 @@ jobs:
         run: |
           echo "Building examples/standalone_cli directory"
           bazel build //...
-      - name: Verify examples/standalone_cli on a fresh, Erlang-free machine (Docker)
-        # Same rationale as examples/web_service's Docker step above: not available on macOS.
+      - name: Verify the standalone CLI archive in the tested runtime image
         if: runner.os == 'Linux'
         working-directory: examples/standalone_cli
         run: |
-          # A same-machine PATH trick can't fully rule out accidentally finding a system
-          # Erlang; copy the *actual* build output onto a genuinely fresh Docker container
-          # that never had Erlang installed at all, dereferencing every runfiles symlink
-          # (cp -L) into real files first, so the copy has no dependency on this machine's
-          # Bazel cache either.
-          rm -rf /tmp/portable_standalone_cli
-          mkdir -p /tmp/portable_standalone_cli
-          cp -L bazel-bin/standalone_cli /tmp/portable_standalone_cli/standalone_cli
-          cp -rL bazel-bin/standalone_cli.runfiles /tmp/portable_standalone_cli/standalone_cli.runfiles
-          output=$(docker run --rm -v /tmp/portable_standalone_cli:/artifact:ro ubuntu:24.04 /artifact/standalone_cli)
-          echo "$output"
-          echo "$output" | grep -q "Hello from a standalone release with no host Erlang required!"
+          artifact="$(mktemp -d)"
+          tar -xzf bazel-bin/standalone_cli.tar.gz -C "$artifact"
+          output=$(docker run --rm --user 65532:65532 -v "$artifact:/artifact:ro" --entrypoint /artifact/standalone_cli rules-gleam-runtime-test)
+          expected="Hello from a standalone release with no host Erlang required!"
+          if [[ "$output" != "$expected" ]]; then
+            echo "FAIL: unexpected standalone output: $output" >&2
+            exit 1
+          fi
+          echo "PASS: standalone archive runs in the tested Ubuntu runtime image"
   pre-commit:
     runs-on: ubuntu-latest
     steps:

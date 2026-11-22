@@ -22,14 +22,14 @@ jobs:
   release:
     uses: bazel-contrib/.github/.github/workflows/release_ruleset.yaml@v7.7.0
     with:
-      bazel_test_command: "echo 'Skipping tests'"
-      release_files: muchq_rules_gleam-*.tar.gz
-      prerelease: false
-      tag_name: ${{ github.ref_name }}
+      bazel_test_command: "bazel test --test_output=errors //..."
+      release_files: rules_gleam-*.tar.gz
+      prerelease: ${{ contains(inputs.tag_name || github.ref_name, '-') }}
+      tag_name: ${{ inputs.tag_name || github.ref_name }}
   publish:
     needs: release
     uses: ./.github/workflows/publish.yaml
     with:
-      tag_name: ${{ github.ref_name }}
+      tag_name: ${{ inputs.tag_name || github.ref_name }}
     secrets:
       publish_token: ${{ secrets.publish_token || secrets.BCR_PUBLISH_TOKEN }}

@@ -38,7 +38,7 @@ Run `bazel run //:gazelle` to keep them up-to-date.
 
 `docs/rules.md` is generated from the docstrings in `gleam/defs.bzl` and the rule
 implementations it re-exports. After changing a rule's `doc` strings or the public API surface,
-run `bazel run //docs:update` to regenerate it, and `bazel test //docs:rules_test` to confirm
+run `bazel run //docs:update` to regenerate it, and `bazel test //docs:update_test` to confirm
 it's up to date (this also runs as part of `bazel test //...`).
 
 ## Using this as a development dependency of other rules
@@ -52,7 +52,7 @@ artifact or a version fetched from the internet, run this from this
 directory:
 
 ```sh
-OVERRIDE="--override_repository=muchq_rules_gleam=$(pwd)"
+OVERRIDE="--override_module=muchq_rules_gleam=$(pwd)"
 echo "common $OVERRIDE" >> ~/.bazelrc
 ```
 
@@ -82,3 +82,27 @@ then: tag the repo and push the tag, for example
 ```
 
 Then watch the automation run on GitHub actions which creates the release.
+
+The release workflow checks out the requested tag, tests it, builds
+`rules_gleam-vVERSION.tar.gz` with prefix `rules_gleam-VERSION/`, and stamps the archive's
+`MODULE.bazel` with that version. The source checkout stays at the development version.
+Examples are included because BCR executes `examples/smoke` from the extracted archive.
+
+Before upload, `release_prep.sh` validates the exact archive: the extracted root suite,
+the shipped smoke module, and a fresh consumer assembled from the README code blocks.
+The consumer uses a checksum-pinned archive override, so it cannot accidentally use the
+checkout. A failure prevents release notes, asset upload, and subsequent BCR publication.
+The BCR retry workflow downloads and validates the published archive again before opening
+the registry PR. Tags supplied by the automated caller are forwarded unchanged, and
+prerelease tags create prereleases.
+
+To exercise the release gate without publishing or creating a tag, use a committed snapshot:
+
+```sh
+python3 -m unittest discover -s test/release -v
+python3 .github/workflows/release_archive.py v0.0.0-ci --ref HEAD --output-dir /tmp/gleam-release
+python3 .github/workflows/release_validate.py /tmp/gleam-release/rules_gleam-v0.0.0-ci.tar.gz v0.0.0-ci
+```
+
+`python3 .github/workflows/release_validate.py --documented-install` separately executes the
+README's exact Git commit pin in a fresh consumer. These scripts need Python 3.12 or newer.

@@ -1,7 +1,7 @@
-# Build Linux archives with the matching OTP distro/CPU before building this image.
+# Build Linux archives with the matching CPU and validate the selected OTP runtime ABI before building this image.
 FROM ubuntu:26.04 AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates libncurses6 libtinfo6 libssl3 libstdc++6 zlib1g \
+    ca-certificates libncurses6 libtinfo6 libssl3t64 libstdc++6 zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
 FROM runtime AS application
