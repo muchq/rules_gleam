@@ -1,5 +1,5 @@
 # Build Linux archives with the matching OTP distro/CPU before building this image.
-FROM ubuntu:22.04 AS runtime
+FROM ubuntu:26.04 AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libncurses6 libtinfo6 libssl3 libstdc++6 zlib1g \
     && rm -rf /var/lib/apt/lists/*
