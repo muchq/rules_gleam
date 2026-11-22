@@ -10,6 +10,7 @@ bzl_library(
     name = "gleam_library",
     srcs = ["gleam_library.bzl"],
     visibility = ["//gleam:__subpackages__"],
+    deps = [":package_files"],
 )
 
 bzl_library(
@@ -55,7 +56,10 @@ bzl_library(
     name = "gleam_test",
     srcs = ["gleam_test.bzl"],
     visibility = ["//gleam:__subpackages__"],
-    deps = [":gleam_library"],
+    deps = [
+        ":gleam_library",
+        ":package_files",
+    ],
 )
 
 bzl_library(
@@ -99,4 +103,17 @@ bzl_library(
     name = "version",
     srcs = ["version.bzl"],
     visibility = ["//gleam:__subpackages__"],
+)
+
+bzl_library(
+    name = "hex_package_policy",
+    srcs = ["hex_package_policy.bzl"],
+    visibility = ["//gleam:__subpackages__"],
+)
+
+bzl_library(
+    name = "package_files",
+    srcs = ["package_files.bzl"],
+    visibility = ["//gleam:__subpackages__"],
+    deps = ["@bazel_skylib//lib:shell"],
 )

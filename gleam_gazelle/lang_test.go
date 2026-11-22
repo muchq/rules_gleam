@@ -52,10 +52,12 @@ gleeunit = "~> 1.0"
 	for _, want := range []string{
 		`gleam_package(`,
 		`name = "my_app"`,
-		`srcs = glob(["src/**/*.gleam"])`,
+		`"src/**/*.erl"`,
 		`gleam_toml = "gleam.toml"`,
 		`deps = ["@gleam_packages//:gleam_stdlib"]`,
-		`test_srcs = glob(["test/**/*.gleam"])`,
+		`"test/**/*.erl"`,
+		`"include/**/*.hrl"`,
+		`"priv/**"`,
 		`test_deps = ["@gleam_packages//:gleeunit"]`,
 	} {
 		if !strings.Contains(got, want) {

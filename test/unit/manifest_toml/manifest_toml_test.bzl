@@ -22,6 +22,8 @@ def _parses_hex_package_test_impl(ctx):
     asserts.equals(env, "hex", stdlib.source)
     asserts.equals(env, "621d600bb134bc239cb2537630899817b1a42e60a1d46c5e9f3fae39f88c800b", stdlib.sha256)
     asserts.equals(env, [], stdlib.deps)
+    asserts.equals(env, ["gleam"], stdlib.build_tools)
+    asserts.equals(env, "gleam_stdlib", stdlib.otp_app)
     return unittest.end(env)
 
 parses_hex_package_test = unittest.make(_parses_hex_package_test_impl)

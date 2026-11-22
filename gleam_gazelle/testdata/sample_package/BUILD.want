@@ -2,6 +2,21 @@ load("@rules_gleam//gleam:defs.bzl", "gleam_package")
 
 gleam_package(
     name = "sample_package",
-    srcs = glob(["src/**/*.gleam"]),
+    srcs = glob(
+        [
+            "src/**/*.erl",
+            "src/**/*.gleam",
+            "src/**/*.mjs",
+        ],
+        allow_empty = True,
+    ),
+    data = glob(
+        [
+            "src/**/*.hrl",
+            "include/**/*.hrl",
+            "priv/**",
+        ],
+        allow_empty = True,
+    ),
     gleam_toml = "gleam.toml",
 )

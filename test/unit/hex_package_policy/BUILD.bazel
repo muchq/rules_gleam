@@ -1,0 +1,3 @@
+load(":hex_package_policy_test.bzl", "hex_package_policy_test_suite")
+
+hex_package_policy_test_suite(name = "hex_package_policy_test_suite")

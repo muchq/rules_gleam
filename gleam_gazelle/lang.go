@@ -65,13 +65,14 @@ func (*gleamLang) GenerateRules(args language.GenerateArgs) language.GenerateRes
 	}
 
 	r := rule.NewRule(gleamPackageKind, pkg.name)
-	r.SetAttr("srcs", rule.GlobValue{Patterns: []string{"src/**/*.gleam"}})
+	r.SetAttr("srcs", rule.GlobValue{Patterns: []string{"src/**/*.gleam", "src/**/*.erl", "src/**/*.mjs"}, AllowEmpty: true})
 	r.SetAttr("gleam_toml", "gleam.toml")
+	r.SetAttr("data", rule.GlobValue{Patterns: []string{"src/**/*.hrl", "include/**/*.hrl", "priv/**"}, AllowEmpty: true})
 	if len(pkg.deps) > 0 {
 		r.SetAttr("deps", pkg.deps)
 	}
 	if pkg.hasTests {
-		r.SetAttr("test_srcs", rule.GlobValue{Patterns: []string{"test/**/*.gleam"}})
+		r.SetAttr("test_srcs", rule.GlobValue{Patterns: []string{"test/**/*.gleam", "test/**/*.erl", "test/**/*.mjs"}, AllowEmpty: true})
 		if len(pkg.testDeps) > 0 {
 			r.SetAttr("test_deps", pkg.testDeps)
 		}
