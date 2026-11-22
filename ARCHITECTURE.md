@@ -25,7 +25,7 @@ workflow.
   (see [Test taxonomy](#test-taxonomy) below, item 3).
 - **`docs/`** — `rules.md`, generated from `gleam/defs.bzl`'s docstrings via
   [Stardoc](https://github.com/bazelbuild/stardoc) (`bazel run //docs:update` regenerates it;
-  `bazel test //docs:rules_test` checks it's up to date).
+  `bazel test //docs:update_test` checks it's up to date).
 - **`test/unit/`** — Starlark unit tests for private helpers (see below).
 
 ## Test taxonomy

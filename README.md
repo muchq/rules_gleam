@@ -53,19 +53,23 @@ this on a real project, hearing about what broke (or didn't) is especially usefu
 
 ## Installation
 
-Add the following to your `MODULE.bazel` file:
+Use Bazel 9.3.3 (the version in `.bazelversion`) and Python 3.12 or newer for the
+release-validation scripts. Add the following pinned source installation to `MODULE.bazel`:
 
 ```starlark
-bazel_dep(name = "muchq_rules_gleam", version = "0.0.1")
+# MODULE.bazel
+bazel_dep(name = "muchq_rules_gleam", version = "0.0.0", repo_name = "rules_gleam")
 git_override(
     module_name = "muchq_rules_gleam",
     remote = "https://github.com/muchq/rules_gleam.git",
-    tag = "v0.1.0",
+    commit = "efaf6d7fc19bb0a32384a102626aa531c0c1f0e6",
 )
 ```
 
-This isn't published to the Bazel Central Registry yet, so `git_override` (pinning a specific
-tag, commit, or branch) is currently the only supported way to depend on it.
+The `rules_gleam` repository alias matches the loads below. This commit pin works without a
+Bazel Central Registry entry. Release notes also provide a checksum-pinned `archive_override`
+for the validated source archive. Once a version is available in BCR, use its version in
+`bazel_dep` and omit the override. WORKSPACE setup is not supported.
 
 ## Quick start
 
@@ -74,6 +78,7 @@ dependencies in `MODULE.bazel` (checksums come from `gleam deps download`'s outp
 package's page on [hex.pm](https://hex.pm)):
 
 ```starlark
+# MODULE.bazel (continued)
 gleam = use_extension("@rules_gleam//gleam:extensions.bzl", "gleam")
 gleam.toolchain(version = "1.17.0")
 gleam.hex_package(
@@ -110,7 +115,7 @@ gleeunit = "~> 1.0"
 
 ```starlark
 # BUILD.bazel
-load("@rules_gleam//gleam:defs.bzl", "gleam_package")
+load("@rules_gleam//gleam:defs.bzl", "gleam_format_test", "gleam_package", "gleam_release")
 
 # Expands to a gleam_library "my_app_lib", a gleam_binary "my_app" (since entry_module is set),
 # and a gleam_test "my_app_test" recompiling srcs + test_srcs together with gleeunit.
@@ -122,6 +127,19 @@ gleam_package(
     test_deps = ["@gleam_packages//:gleeunit"],
     test_srcs = glob(["test/**/*.gleam"]),
     deps = ["@gleam_packages//:gleam_stdlib"],
+)
+
+# Run without requiring Erlang on the host PATH.
+gleam_release(
+    name = "my_app_release",
+    dep = ":my_app_lib",
+    entry_module = "main",
+)
+
+# Formatting is a separate rule; gleam_package does not create this target.
+gleam_format_test(
+    name = "my_app_format_test",
+    srcs = glob(["src/**/*.gleam", "test/**/*.gleam"]),
 )
 ```
 
@@ -163,12 +181,15 @@ pub fn greeting_test() {
 Then the usual Bazel commands work as expected:
 
 ```shell
-bazel run //:my_app      # builds and runs the escript
+bazel run //:my_app_release      # runs with the bundled Erlang runtime
 bazel test //:my_app_test
-bazel test //:my_app_format_test  # gleam_package also adds a `gleam format --check` test
+bazel test //:my_app_format_test
 ```
 
-See [examples/smoke](examples/smoke) for this exact example, checked in and exercised by CI.
+The `my_app` target still builds an escript with `bazel build //:my_app`; running that
+escript requires a compatible Erlang runtime on PATH. CI executes the README blocks in a
+fresh consumer repository against the source archive. [examples/smoke](examples/smoke) adds
+a regression fixture for transitive test data.
 
 ## Usage
 
@@ -275,7 +296,7 @@ should be treated as read-only; put writable state outside the extracted tree.
 The bundled OTP is not statically linked. Match the build's OS/CPU and its runtime ABI and
 shared libraries; changing the container image does not cross-compile an archive. The default
 Linux OTP build targets Ubuntu 22.04/glibc. The example
-[Dockerfile](examples/web_service/Dockerfile) uses Ubuntu 22.04 and installs its runtime
+[Dockerfile](examples/web_service/Dockerfile) tests that build on Ubuntu 26.04 and installs its runtime
 libraries (OpenSSL, ncurses/tinfo, libstdc++, zlib and CA certificates), with no Erlang package.
 Alpine/musl, distroless images and other distro versions are not implicitly supported.
 macOS artifacts require compatible macOS system libraries and any dependencies of the

@@ -1,6 +1,13 @@
 {
   "homepage": "https://github.com/muchq/rules_gleam",
-  "maintainers": [],
+  "maintainers": [
+    {
+      "github": "aaylward",
+      "github_user_id": 846647,
+      "name": "Andy Aylward",
+      "email": "andy@eggsample.net"
+    }
+  ],
   "repository": ["github:muchq/rules_gleam"],
   "versions": [],
   "yanked_versions": {}
