@@ -97,7 +97,7 @@ if command == "run":
                "FAIL_TESTS": "1" if fail_tests else "0", "BAZEL_TEST_LOG": str(log)}
         result = subprocess.run(["bash", ".github/workflows/release_prep.sh", "v1.2.3-rc1"],
                                 cwd=self.repo, env=env, text=True, capture_output=True)
-        return result, log.read_text()
+        return result, log.read_text() if log.exists() else ""
 
     def test_failed_archive_validation_blocks_release_notes(self):
         result, calls = self.prepare(fail_tests=True)
