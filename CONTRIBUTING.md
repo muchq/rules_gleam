@@ -91,10 +91,10 @@ Examples are included because BCR executes `examples/smoke` from the extracted a
 Before upload, `release_prep.sh` validates the exact archive: the extracted root suite,
 the shipped smoke module, and a fresh consumer assembled from the README code blocks.
 The consumer uses a checksum-pinned archive override, so it cannot accidentally use the
-checkout. A failure prevents release notes, asset upload, and subsequent BCR publication.
-The BCR retry workflow downloads and validates the published archive again before opening
-the registry PR. Tags supplied by the automated caller are forwarded unchanged, and
-prerelease tags create prereleases.
+checkout. A failure prevents release notes and asset upload. Releases are not published to
+BCR automatically; `publish.yaml` can be dispatched by hand, and it validates the published
+archive again before opening the registry PR. Tags supplied by the automated caller are
+forwarded unchanged, and prerelease tags create prereleases.
 
 To exercise the release gate without publishing or creating a tag, use a committed snapshot:
 
