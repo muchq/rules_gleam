@@ -68,6 +68,15 @@ jobs:
         run: |
           python3 .github/workflows/release_archive.py v0.0.0-ci --ref HEAD --output-dir "$RUNNER_TEMP/source-release"
           python3 .github/workflows/release_validate.py "$RUNNER_TEMP/source-release/rules_gleam-v0.0.0-ci.tar.gz" v0.0.0-ci
+      - name: Verify protoc is prebuilt, not compiled from source
+        run: |
+          compiles=$(bazel aquery 'mnemonic("CppCompile", deps(//...))' 2>/dev/null | grep "Target:" | grep -v "@bazel_tools//" | sort | uniq -c || true)
+          if [[ -n "$compiles" ]]; then
+            echo "FAIL: unexpected C++ compilation (is prefer_prebuilt_protoc still effective?):" >&2
+            echo "$compiles" >&2
+            exit 1
+          fi
+          echo "PASS: no C++ compiled outside @bazel_tools"
       - name: Run Bazel Tests - gleam_gazelle Directory (Gazelle language extension)
         run: |
           echo "Running the gleam Gazelle language extension's Go unit tests"
