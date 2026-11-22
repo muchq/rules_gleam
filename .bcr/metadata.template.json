@@ -8,9 +8,7 @@
       "email": "andy@eggsample.net"
     }
   ],
-  "repository": [
-    "github:muchq/rules_gleam"
-  ],
+  "repository": ["github:muchq/rules_gleam"],
   "versions": [],
   "yanked_versions": {}
 }
