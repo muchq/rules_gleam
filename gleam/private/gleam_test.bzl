@@ -8,6 +8,7 @@ doesn't expose.
 """
 
 load("//gleam/private:gleam_library.bzl", "GleamPackageInfo")
+load(":package_files.bzl", "erl_compiler_options_command", "otp_package_commands")
 
 def _gleam_test_impl(ctx):
     if ctx.attr.shard_count > 1:
@@ -73,7 +74,9 @@ def _gleam_test_impl(ctx):
         src = src_dir,
         out = compiled_dir.path,
     )
+    cmd_parts.append(erl_compiler_options_command(ctx.files.data, src_dir))
     cmd_parts.append(compile_cmd)
+    cmd_parts.extend(otp_package_commands(ctx.files.data, src_dir, compiled_dir))
 
     compile_command = " && ".join(cmd_parts)
 
@@ -82,10 +85,6 @@ def _gleam_test_impl(ctx):
         tools = gleam_toolchain_info.tool_files,
         inputs = inputs_depset,
         outputs = [compiled_dir],
-        # See gleam_library.bzl's identical env setting for why: erlc (invoked internally by
-        # `gleam compile-package`) otherwise embeds Bazel's per-action sandbox path into the
-        # compiled output.
-        env = {"ERL_COMPILER_OPTIONS": "[deterministic]"},
         progress_message = "Compiling Gleam tests: " + package_name,
         mnemonic = "GleamCompileTest",
     )

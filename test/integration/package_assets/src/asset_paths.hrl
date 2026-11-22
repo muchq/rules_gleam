@@ -1,0 +1,1 @@
+-define(PRIV_FILE, "message.txt").

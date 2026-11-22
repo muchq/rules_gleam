@@ -51,6 +51,7 @@ bzl_library(
     visibility = ["//visibility:public"],
     deps = [
         ":repositories",
+        "//gleam/private:hex_package_policy",
         "//gleam/private:manifest_toml",
         "//gleam/private:version",
     ],

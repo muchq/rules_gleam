@@ -6,6 +6,8 @@ per-target caching model: each package compiles once and downstream
 targets consume compiled BEAM artifacts.
 """
 
+load(":package_files.bzl", "erl_compiler_options_command", "otp_package_commands")
+
 GleamPackageInfo = provider(
     doc = "Provider for compiled Gleam package information.",
     fields = {
@@ -84,7 +86,9 @@ def _gleam_library_impl(ctx):
         src = src_dir,
         out = compiled_dir.path,
     )
+    cmd_parts.append(erl_compiler_options_command(ctx.files.data, src_dir))
     cmd_parts.append(compile_cmd)
+    cmd_parts.extend(otp_package_commands(ctx.files.data, src_dir, compiled_dir))
 
     final_command = " && ".join(cmd_parts)
 
@@ -93,14 +97,6 @@ def _gleam_library_impl(ctx):
         tools = gleam_toolchain_info.tool_files,
         inputs = inputs_depset,
         outputs = [compiled_dir],
-        # `gleam compile-package` shells out to erlc internally; erlc (like any caller of the
-        # `compile` module) reads ERL_COMPILER_OPTIONS and applies it to every compilation.
-        # `deterministic` stops it from embedding the compiling machine's absolute source path
-        # into each .beam file's debug/line-number metadata -- without it, Bazel's per-action
-        # sandbox path (which differs between separate builds of the same target) would leak
-        # into the compiled output and make it non-reproducible for reasons that have nothing
-        # to do with the actual source.
-        env = {"ERL_COMPILER_OPTIONS": "[deterministic]"},
         progress_message = "Compiling Gleam package: " + package_name,
         mnemonic = "GleamCompilePackage",
     )

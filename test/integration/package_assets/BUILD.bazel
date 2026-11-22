@@ -1,0 +1,35 @@
+load("//gleam:defs.bzl", "gleam_library", "gleam_release")
+load(":asset_test.bzl", "asset_test")
+
+# Headers under include/ (resolved without Rebar3's `-I include`) and src/, plus a priv/ asset.
+gleam_library(
+    name = "library",
+    package_name = "asset_fixture",
+    srcs = ["src/asset_fixture.erl"],
+    data = [
+        "gleam.toml",
+        "include/message.hrl",
+        "priv/message.txt",
+        "src/asset_paths.hrl",
+    ],
+)
+
+# Dependent package using -include_lib, which requires the OTP include/ layout.
+gleam_library(
+    name = "consumer",
+    package_name = "asset_consumer",
+    srcs = ["consumer/src/asset_consumer.erl"],
+    data = ["consumer/gleam.toml"],
+    deps = [":library"],
+)
+
+gleam_release(
+    name = "release",
+    dep = ":consumer",
+    entry_module = "asset_consumer",
+)
+
+asset_test(
+    name = "asset_test",
+    binary = ":release",
+)

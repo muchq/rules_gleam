@@ -56,7 +56,7 @@ def parse_manifest_toml(content):
     Returns:
         A list of structs, one per declared package, with fields: name, version, source
         (e.g. "hex", "git", "local"), sha256 (lowercased `outer_checksum`, "" if absent), and
-        deps (the package's own `requirements`, i.e. the names of packages it depends on).
+        deps (the package's own `requirements`), build_tools and otp_app.
     """
     packages = []
     in_packages_block = False
@@ -81,6 +81,8 @@ def parse_manifest_toml(content):
         outer_checksum = _extract_string(line, "outer_checksum")
         packages.append(struct(
             name = name,
+            build_tools = _extract_list(line, "build_tools") or [],
+            otp_app = _extract_string(line, "otp_app") or name,
             version = version,
             source = _extract_string(line, "source"),
             sha256 = outer_checksum.lower() if outer_checksum else "",

@@ -14,7 +14,11 @@ gleam.toolchain(version = "1.17.0")
 # mist (a Gleam HTTP server) and its full transitive Hex dependency graph -- parsed straight
 # from this project's own manifest.toml (the lockfile `gleam deps download` produces) instead
 # of hand-declaring and hand-checksumming each of the 12 packages individually.
-gleam.hex_manifest(manifest = "manifest.toml")
+# hpack_erl 0.3.0 contains plain Erlang sources; no native code or build hooks.
+gleam.hex_manifest(
+    manifest = "manifest.toml",
+    plain_erlang_packages = ["hpack_erl"],
+)
 use_repo(gleam, "gleam_packages", "gleam_toolchains", "local_config_erlang")
 
 register_toolchains("@gleam_toolchains//:all")

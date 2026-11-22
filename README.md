@@ -187,3 +187,26 @@ worked example of wiring this into a downstream project's own `MODULE.bazel`/`BU
 To run the `gleam` CLI itself (e.g. `gleam format`) without knowing your machine's OS/arch
 string, add `"gleam_host"` to the extension's `use_repo(...)` call and run
 `bazel run @gleam_host//:gleam -- format`.
+
+### Hex package build support
+
+Hex imports support Gleam packages, including Erlang FFI sources, declared headers under
+`src/` and `include/`, and runtime files under `priv/`. The generated targets declare these
+inputs. `include/` is passed to the Erlang compiler (as Rebar3's `-I include` would be), and
+library/test compilation copies `include/` and `priv/` into the compiled OTP package, so
+dependents can use `-include_lib("app/include/...")` and `code:priv_dir/1` works in releases. For local targets, include headers and `priv/**` in
+`data`; Gazelle now generates these declarations and includes `.erl`/`.mjs` sources.
+
+Rebar3, Mix, native compilation and custom build hooks are not implemented. Lockfile
+`build_tools` and `otp_app` are retained and checked, and common native/custom build entry
+points (`c_src`, `Makefile`, `mix.exs`, `rebar.config.script`) are rejected. A differing OTP
+application name is also rejected rather than generating an incorrectly named application.
+
+An audited Erlang-only package can explicitly bypass Rebar3 with
+`gleam.hex_manifest(..., plain_erlang_packages = ["hpack_erl"])`, or
+`gleam.hex_package(..., allow_plain_erlang = True)`. This asserts that the package needs no
+Rebar3 options, plugins, hooks, code generation or native compilation; its Rebar3 configuration
+is not interpreted. Other packages need a dedicated Bazel build. For manual declarations,
+`build_tools` and `otp_app` may be supplied explicitly; otherwise the archive layout is checked.
+This is a bounded build contract, not general Hex/Rebar3 compatibility. Escript binaries still
+do not bundle runtime assets; use a release for packages that need `priv/`.
