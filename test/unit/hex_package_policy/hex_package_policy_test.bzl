@@ -1,7 +1,7 @@
 """Supported-package and fail-closed policy tests."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//gleam/private:hex_package_policy.bzl", "unsupported_package_reason")
+load("//gleam/private:hex_package_policy.bzl", "unsupported_package_reason")  # buildifier: disable=bzl-visibility
 
 _OPT_IN_HINT = "Only audited plain Erlang packages may opt in with allow_plain_erlang / plain_erlang_packages."
 
