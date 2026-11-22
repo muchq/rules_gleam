@@ -1,7 +1,7 @@
 load("//gleam:defs.bzl", "gleam_library", "gleam_release")
 load(":asset_test.bzl", "asset_test")
 
-# Header under include/ (resolved without Rebar3's `-I include`) and a priv/ asset.
+# Headers under include/ (resolved without Rebar3's `-I include`) and src/, plus a priv/ asset.
 gleam_library(
     name = "library",
     package_name = "asset_fixture",
@@ -10,6 +10,7 @@ gleam_library(
         "gleam.toml",
         "include/message.hrl",
         "priv/message.txt",
+        "src/asset_paths.hrl",
     ],
 )
 
