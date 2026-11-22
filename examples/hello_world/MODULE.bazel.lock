@@ -218,7 +218,7 @@
   "moduleExtensions": {
     "@@muchq_rules_gleam+//gleam:extensions.bzl%gleam": {
       "general": {
-        "bzlTransitiveDigest": "tI/PKOVM84JwoQEf5ZfserKhBk7TS4aw6ru0KUtvkck=",
+        "bzlTransitiveDigest": "XxTRAYQgYuodpaQAXN/c0+pocDRjve4kniadZsR3hNA=",
         "usagesDigest": "JHi692tajVEzJ/8IQThdQ+8wW8eqU732RGUHULuRfhA=",
         "recordedInputs": [],
         "generatedRepoSpecs": {

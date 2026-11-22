@@ -8,13 +8,16 @@ packages = [
   { name = "gleam_stdlib", version = "0.60.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "621D600BB134BC239CB2537630899817B1A42E60A1D46C5E9F3FAE39F88C800B" },
   { name = "gleeunit", version = "1.9.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "DA9553CE58B67924B3C631F96FE3370C49EB6D6DC6B384EC4862CC4AAA718F3C" },
   { name = "local_thing", version = "0.1.0", build_tools = ["gleam"], requirements = [], otp_app = "local_thing", source = "local" },
+  { name = "hpack_erl", version = "0.3.0", build_tools = ["rebar3"], requirements = [], otp_app = "hpack_erl", source = "hex", outer_checksum = "D6137D7079169D8C485C6962DFE261AF5B9EF60FBC557344511C1E65E3D95FB0" },
+  { name = "renamed_pkg", version = "1.0.0", build_tools = ["rebar3"], requirements = [], otp_app = "renamed_app", source = "hex", outer_checksum = "AA" },
+  { name = "bare_pkg", version = "1.0.0", requirements = [], source = "hex", outer_checksum = "BB" },
 ]
 """
 
 def _parses_hex_package_test_impl(ctx):
     env = unittest.begin(ctx)
     packages = parse_manifest_toml(_SAMPLE)
-    asserts.equals(env, 3, len(packages))
+    asserts.equals(env, 6, len(packages))
 
     stdlib = packages[0]
     asserts.equals(env, "gleam_stdlib", stdlib.name)
@@ -51,6 +54,28 @@ def _non_hex_source_has_empty_checksum_test_impl(ctx):
 
 non_hex_source_has_empty_checksum_test = unittest.make(_non_hex_source_has_empty_checksum_test_impl)
 
+def _parses_build_tools_and_otp_app_test_impl(ctx):
+    env = unittest.begin(ctx)
+    packages = parse_manifest_toml(_SAMPLE)
+
+    hpack = packages[3]
+    asserts.equals(env, "hpack_erl", hpack.name)
+    asserts.equals(env, ["rebar3"], hpack.build_tools)
+    asserts.equals(env, "hpack_erl", hpack.otp_app)
+
+    renamed = packages[4]
+    asserts.equals(env, "renamed_pkg", renamed.name)
+    asserts.equals(env, "renamed_app", renamed.otp_app)
+
+    # Missing build_tools/otp_app default to no tools and the package name.
+    bare = packages[5]
+    asserts.equals(env, "bare_pkg", bare.name)
+    asserts.equals(env, [], bare.build_tools)
+    asserts.equals(env, "bare_pkg", bare.otp_app)
+    return unittest.end(env)
+
+parses_build_tools_and_otp_app_test = unittest.make(_parses_build_tools_and_otp_app_test_impl)
+
 def _empty_manifest_parses_to_no_packages_test_impl(ctx):
     env = unittest.begin(ctx)
     packages = parse_manifest_toml("packages = [\n]\n")
@@ -65,5 +90,6 @@ def manifest_toml_test_suite(name):
         parses_hex_package_test,
         parses_requirements_as_deps_test,
         non_hex_source_has_empty_checksum_test,
+        parses_build_tools_and_otp_app_test,
         empty_manifest_parses_to_no_packages_test,
     )

@@ -358,7 +358,7 @@ def _gleam_hex_packages_impl(repository_ctx):
             fail("Hex package '{}': {} Use a dedicated Bazel build for this dependency, or choose a supported package.".format(name, reason))
 
         # Only explicitly audited plain Erlang packages may bypass Rebar3.
-        if not repository_ctx.path("{}/gleam.toml".format(name)).exists:
+        if not has_gleam_toml:
             repository_ctx.file(
                 "{}/gleam.toml".format(name),
                 'name = "{}"\nversion = "{}"\n'.format(name, version),
