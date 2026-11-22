@@ -46,7 +46,7 @@ def _non_hex_source_has_empty_checksum_test_impl(ctx):
     packages = parse_manifest_toml(_SAMPLE)
     local_pkg = packages[2]
 
-    # extensions.bzl's caller is responsible for skipping non-"hex" packages; this function
+    # extensions.bzl's caller is responsible for rejecting non-"hex" packages; this function
     # just needs to parse whatever source is declared and not require a checksum for it.
     asserts.equals(env, "local", local_pkg.source)
     asserts.equals(env, "", local_pkg.sha256)

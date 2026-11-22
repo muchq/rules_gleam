@@ -66,6 +66,8 @@ jobs:
         run: |
           echo "Running the gleam Gazelle language extension's Go unit tests"
           bazel test --test_output=errors //gleam_gazelle/...
+      - name: Verify shared Hex dependencies across Bazel modules
+        run: python3 test/integration/shared_hex.py
       - name: Verify @gleam_host//:gleam is directly runnable
         run: |
           # gleam_host_repo (gleam/private/host_repo.bzl) detects the host platform without

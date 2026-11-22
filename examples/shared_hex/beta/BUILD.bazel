@@ -1,0 +1,7 @@
+exports_files(["manifest.toml"])
+
+alias(
+    name = "stdlib",
+    actual = "@gleam_packages//:gleam_stdlib",
+    visibility = ["//visibility:public"],
+)

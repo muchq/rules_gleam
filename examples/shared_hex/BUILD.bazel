@@ -1,0 +1,7 @@
+filegroup(
+    name = "shared",
+    srcs = [
+        "@alpha//:stdlib",
+        "@beta//:stdlib",
+    ],
+)

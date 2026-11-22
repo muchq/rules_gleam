@@ -180,6 +180,27 @@ by pointing `gleam.hex_manifest(manifest = "//path/to:manifest.toml")` at a Glea
 `manifest.toml` lockfile (see [examples/web_service/MODULE.bazel](examples/web_service/MODULE.bazel)),
 which avoids hand-maintaining a package's full transitive dependency graph and checksums.
 
+All Bazel modules using the same extension share one `gleam_packages` repository. Identical
+declarations are deduplicated, including across manifests and explicit tags. Checksums are
+case-insensitive; dependency/build-tool ordering and an omitted `otp_app` do not matter.
+The version, checksum, dependencies, build tools and plain-Erlang opt-in must otherwise agree.
+For an explicit tag matching a manifest, include the manifest's `build_tools` as well.
+Conflicts identify the modules and tags that disagree; no version is silently selected.
+
+The root module can deliberately replace a package's declarations with
+`gleam.hex_package(..., override = True)`. Supply its complete version, checksum, dependency
+list and build policy, and check that all consumers support that version. Dependency modules
+cannot override packages; a root declaration without `override = True` has no special priority.
+Even an override cannot resolve different checksums for the same package version: verify and
+correct those declarations. Overrides replace rather than merge dependency lists, and the
+selected graph must have every dependency declared and contain no cycles.
+
+Git/path entries in `hex_manifest` are rejected with an error. To use them, define local
+`gleam_library` targets and wire their dependencies explicitly in `BUILD.bazel`, declaring
+Hex dependencies individually instead of importing the mixed-source manifest. If a Hex
+package itself needs a local dependency, define that package as a local target too; generated
+Hex targets refer only to other packages in `gleam_packages`.
+
 BUILD files themselves can be generated instead of hand-written: a [Gazelle](gleam_gazelle)
 extension turns any `gleam.toml` + `src/**/*.gleam` directory into a `gleam_package(...)` target.
 Wire it into your own `gazelle_binary`'s `languages` list alongside `@rules_gleam//gleam_gazelle`

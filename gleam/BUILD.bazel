@@ -52,6 +52,7 @@ bzl_library(
     deps = [
         ":repositories",
         "//gleam/private:hex_package_policy",
+        "//gleam/private:hex_resolution",
         "//gleam/private:manifest_toml",
         "//gleam/private:version",
     ],

@@ -57,6 +57,9 @@ Four layers, each catching a different class of regression:
      start.
    - **[gazelle_smoke](examples/gazelle_smoke)** — wiring `gleam_gazelle` into a downstream
      project's own `gazelle_binary`.
+   - **[shared_hex](examples/shared_hex)** — two independent Bazel modules sharing a Hex
+     dependency. `test/integration/shared_hex.py` builds the fixture and exercises resolution
+     failures and explicit root overrides in a temporary workspace.
    - **[nested_smoke](examples/nested_smoke)** — a package nested below the repo root, and the
      one example that opts out of the hermetic Erlang toolchain via
      `gleam.local_erlang_toolchain()` (so it needs a system Erlang on `PATH`; see the "Set up
