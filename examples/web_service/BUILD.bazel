@@ -24,7 +24,10 @@ gleam_package(
     srcs = glob(["src/**/*.gleam"]),
     gleam_toml = "gleam.toml",
     test_deps = ["@gleam_packages//:gleeunit"],
-    test_srcs = glob(["test/**/*.gleam"]),
+    test_srcs = glob([
+        "test/**/*.gleam",
+        "test/**/*.erl",
+    ]),
     deps = _DEPS,
 )
 

@@ -8,7 +8,7 @@ packages = [
   { name = "gleam_stdlib", version = "0.60.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "621D600BB134BC239CB2537630899817B1A42E60A1D46C5E9F3FAE39F88C800B" },
   { name = "gleeunit", version = "1.9.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "DA9553CE58B67924B3C631F96FE3370C49EB6D6DC6B384EC4862CC4AAA718F3C" },
   { name = "local_thing", version = "0.1.0", build_tools = ["gleam"], requirements = [], otp_app = "local_thing", source = "local" },
-  { name = "hpack_erl", version = "0.3.0", build_tools = ["rebar3"], requirements = [], otp_app = "hpack_erl", source = "hex", outer_checksum = "D6137D7079169D8C485C6962DFE261AF5B9EF60FBC557344511C1E65E3D95FB0" },
+  { name = "hpack_erl", version = "0.3.0", build_tools = ["rebar3"], requirements = [], otp_app = "hpack", source = "hex", outer_checksum = "D6137D7079169D8C485C6962DFE261AF5B9EF60FBC557344511C1E65E3D95FB0" },
   { name = "renamed_pkg", version = "1.0.0", build_tools = ["rebar3"], requirements = [], otp_app = "renamed_app", source = "hex", outer_checksum = "AA" },
   { name = "bare_pkg", version = "1.0.0", requirements = [], source = "hex", outer_checksum = "BB" },
 ]
@@ -46,7 +46,7 @@ def _non_hex_source_has_empty_checksum_test_impl(ctx):
     packages = parse_manifest_toml(_SAMPLE)
     local_pkg = packages[2]
 
-    # extensions.bzl's caller is responsible for rejecting non-"hex" packages; this function
+    # extensions.bzl skips recognized non-Hex packages; this function
     # just needs to parse whatever source is declared and not require a checksum for it.
     asserts.equals(env, "local", local_pkg.source)
     asserts.equals(env, "", local_pkg.sha256)
@@ -61,7 +61,7 @@ def _parses_build_tools_and_otp_app_test_impl(ctx):
     hpack = packages[3]
     asserts.equals(env, "hpack_erl", hpack.name)
     asserts.equals(env, ["rebar3"], hpack.build_tools)
-    asserts.equals(env, "hpack_erl", hpack.otp_app)
+    asserts.equals(env, "hpack", hpack.otp_app)
 
     renamed = packages[4]
     asserts.equals(env, "renamed_pkg", renamed.name)

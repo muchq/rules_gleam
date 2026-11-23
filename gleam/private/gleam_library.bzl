@@ -11,7 +11,7 @@ load(":package_files.bzl", "erl_compiler_options_command", "otp_package_commands
 GleamPackageInfo = provider(
     doc = "Provider for compiled Gleam package information.",
     fields = {
-        "compiled_dir": "TreeArtifact (named after the package) containing ebin/ with compiled BEAM files.",
+        "compiled_dir": "TreeArtifact named after the OTP application, containing ebin/ with compiled BEAM files.",
         "package_name": "Name of the Gleam package.",
         "transitive_compiled_dirs": "Depset of all transitive compiled TreeArtifacts (including this package's own).",
         "transitive_data": "Depset of all transitive runtime data Files (this package's own `data` plus all deps', transitively).",
@@ -25,9 +25,10 @@ def _gleam_library_impl(ctx):
 
     package_name = ctx.attr.package_name
 
-    # Declare a TreeArtifact named after the package so downstream rules
-    # can derive the package name from the directory basename.
-    compiled_dir = ctx.actions.declare_directory("_gleam_pkg/" + package_name)
+    # OTP resolves include_lib and priv_dir using the application directory name.
+    # Keep the Gleam/Hex package identity separate for module metadata and labels.
+    otp_app = ctx.attr.otp_app or package_name
+    compiled_dir = ctx.actions.declare_directory("_gleam_pkg/" + otp_app)
 
     # Collect dependency info.
     dep_infos = []
@@ -76,7 +77,7 @@ def _gleam_library_impl(ctx):
     for dep_info in dep_infos:
         cmd_parts.append('ln -s "$(pwd)/{compiled}" "_gleam_lib/{name}"'.format(
             compiled = dep_info.compiled_dir.path,
-            name = dep_info.package_name,
+            name = dep_info.compiled_dir.basename,
         ))
 
     # Run gleam compile-package.
@@ -148,6 +149,9 @@ gleam_library = rule(
         "package_name": attr.string(
             doc = "The name of the Gleam package.",
             mandatory = True,
+        ),
+        "otp_app": attr.string(
+            doc = "OTP application name for the compiled directory; defaults to package_name. A matching `src/<otp_app>.app.src` in data is copied to `ebin/<otp_app>.app` without interpreting Rebar3 configuration.",
         ),
         "data": attr.label_list(
             doc = "Data dependencies.",

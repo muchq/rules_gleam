@@ -91,9 +91,25 @@ def main():
                     manifest: originals[manifest].replace('requirements = []', f'requirements = ["{dep}"]')},
                       (error,))
             for source in ["git", "local", "path"]:
-                check(f"reject {source} manifest", {manifest: originals[manifest].replace(
-                    'source = "hex"', f'source = "{source}"')},
-                      ("Unsupported manifest package", "local gleam_library targets", "BUILD.bazel"))
+                local_entry = (
+                    '  { name = "mist_pal", version = "0.1.0", build_tools = ["gleam"], '
+                    'requirements = ["gleam_stdlib"], otp_app = "mist_pal", '
+                    f'source = "{source}", path = "../mist_pal" }},\n'
+                )
+                mixed = originals[manifest].replace("\n]", "\n" + local_entry + "]")
+                output = check(f"skip {source} entry in mixed manifest", {manifest: mixed})
+                if "mist_pal" in output or output.count(DIGEST) != 1:
+                    raise AssertionError(f"Expected only Hex packages:\n{output}")
+                check(f"Hex requirement on skipped {source} entry fails", {
+                    manifest: mixed.replace('requirements = []', 'requirements = ["mist_pal"]'),
+                    alpha: originals[alpha].replace('build_tools = ["gleam"],',
+                                                    'build_tools = ["gleam"], deps = ["mist_pal"],'),
+                }, ("requires undeclared package 'mist_pal'",))
+            check("unknown manifest source", {manifest: originals[manifest].replace(
+                'source = "hex"', 'source = "unknown"')},
+                  ("Unsupported manifest package", "Expected hex, git, local or path"))
+            check("missing Hex checksum", {manifest: originals[manifest].replace(
+                DIGEST.upper(), "")}, ("no outer_checksum",))
             check("two manifests deduplicate", {
                 alpha: originals[alpha].split("gleam.hex_package(")[0]
                 + 'gleam.hex_manifest(manifest = "@beta//:manifest.toml")\n'

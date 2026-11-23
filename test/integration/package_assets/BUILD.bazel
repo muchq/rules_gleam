@@ -10,8 +10,10 @@ gleam_library(
         "gleam.toml",
         "include/message.hrl",
         "priv/message.txt",
+        "src/asset_app.app.src",
         "src/asset_paths.hrl",
     ],
+    otp_app = "asset_app",
 )
 
 # Dependent package using -include_lib, which requires the OTP include/ layout.

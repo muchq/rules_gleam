@@ -204,8 +204,10 @@ which avoids hand-maintaining a package's full transitive dependency graph and c
 
 All Bazel modules using the same extension share one `gleam_packages` repository. Identical
 declarations are deduplicated, including across manifests and explicit tags. Checksums are
-case-insensitive; dependency/build-tool ordering and an omitted `otp_app` do not matter.
-The version, checksum, dependencies, build tools and plain-Erlang opt-in must otherwise agree.
+case-insensitive; dependency/build-tool ordering does not matter. An omitted `otp_app`
+defaults to the Hex package name.
+The version, checksum, dependencies, build tools, OTP name and plain-Erlang opt-in must
+otherwise agree.
 For an explicit tag matching a manifest, include the manifest's `build_tools` as well.
 Conflicts identify the modules and tags that disagree; no version is silently selected.
 
@@ -217,9 +219,9 @@ Even an override cannot resolve different checksums for the same package version
 correct those declarations. Overrides replace rather than merge dependency lists, and the
 selected graph must have every dependency declared and contain no cycles.
 
-Git/path entries in `hex_manifest` are rejected with an error. To use them, define local
-`gleam_library` targets and wire their dependencies explicitly in `BUILD.bazel`, declaring
-Hex dependencies individually instead of importing the mixed-source manifest. If a Hex
+Git/path entries in `hex_manifest` are skipped, so mixed-source manifests can be imported
+without editing the generated lockfile. Define local `gleam_library` targets for these
+packages and wire their dependencies explicitly in `BUILD.bazel`. If a Hex
 package itself needs a local dependency, define that package as a local target too; generated
 Hex targets refer only to other packages in `gleam_packages`.
 
@@ -244,8 +246,12 @@ dependents can use `-include_lib("app/include/...")` and `code:priv_dir/1` works
 
 Rebar3, Mix, native compilation and custom build hooks are not implemented. Lockfile
 `build_tools` and `otp_app` are retained and checked, and common native/custom build entry
-points (`c_src`, `Makefile`, `mix.exs`, `rebar.config.script`) are rejected. A differing OTP
-application name is also rejected rather than generating an incorrectly named application.
+points (`c_src`, `Makefile`, `mix.exs`, `rebar.config.script`) are rejected. Hex and OTP names
+may differ: `hpack_erl` remains `@gleam_packages//:hpack_erl`, while its compiled application
+directory is named `hpack`. Supplied `src/<otp_app>.app.src` files are copied unchanged to
+`ebin/<otp_app>.app`; Rebar3 substitutions and application resource generation are not
+performed. Local `gleam_library` targets can likewise set `otp_app` and include the matching
+application resource in `data`.
 
 An audited Erlang-only package can explicitly bypass Rebar3 with
 `gleam.hex_manifest(..., plain_erlang_packages = ["hpack_erl"])`, or

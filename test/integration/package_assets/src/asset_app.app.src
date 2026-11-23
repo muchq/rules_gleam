@@ -1,0 +1,7 @@
+{application, asset_app, [
+    {description, "Application whose OTP and package names differ"},
+    {vsn, "1.0.0"},
+    {modules, [asset_fixture]},
+    {registered, []},
+    {applications, [kernel, stdlib]}
+]}.
