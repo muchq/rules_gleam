@@ -1,0 +1,47 @@
+load("//gleam:defs.bzl", "gleam_binary", "gleam_library")
+load(":escript_startup_test.bzl", "escript_startup_test")
+
+# Renamed applications must start before their escript entry point runs.
+gleam_library(
+    name = "renamed_library",
+    package_name = "escript_package",
+    srcs = ["src/escript_startup.erl"],
+    data = [
+        "gleam.toml",
+        "src/escript_app.app.src",
+    ],
+    otp_app = "escript_app",
+)
+
+gleam_binary(
+    name = "renamed_binary",
+    dep = ":renamed_library",
+    entry_module = "escript_startup",
+)
+
+escript_startup_test(
+    name = "starts_distinct_otp_application_test",
+    binary = ":renamed_binary",
+)
+
+# The default application name must continue to start successfully.
+gleam_library(
+    name = "same_name_library",
+    package_name = "same_name_app",
+    srcs = ["same_name/src/same_name_startup.erl"],
+    data = [
+        "same_name/gleam.toml",
+        "same_name/src/same_name_app.app.src",
+    ],
+)
+
+gleam_binary(
+    name = "same_name_binary",
+    dep = ":same_name_library",
+    entry_module = "same_name_startup",
+)
+
+escript_startup_test(
+    name = "starts_default_otp_application_test",
+    binary = ":same_name_binary",
+)

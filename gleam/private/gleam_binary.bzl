@@ -49,10 +49,12 @@ def _gleam_binary_impl(ctx):
     if not escript_path:
         escript_path = "escript"
 
-    # Arguments for the builder: OutFile, PackageName, EntryModule, EntryFunction, ShimBeam, Files...
+    # The startup shim needs the OTP application name, which can differ from the
+    # Gleam/Hex package name. Compiled directories carry that application name.
+    # Arguments for the builder: OutFile, OtpApp, EntryModule, EntryFunction, ShimBeam, Files...
     args = ctx.actions.args()
     args.add(executable)
-    args.add(dep_info.package_name)
+    args.add(dep_info.compiled_dir.basename)
     args.add(entry_module)
     args.add(entry_function)
     args.add(shim_beam)  # Add shim beam to inputs

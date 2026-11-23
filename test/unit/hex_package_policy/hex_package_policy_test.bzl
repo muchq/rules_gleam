@@ -109,7 +109,8 @@ def _rejects_invalid_otp_app_test_impl(ctx):
     env = unittest.begin(ctx)
     for name in ["", "../hpack", "hpack/app", 'hpack"', "hpack\\app"]:
         reason = unsupported_package_reason("app", ["gleam"], name, True, False, [])
-        asserts.true(env, reason != None and reason.startswith("Invalid OTP application name"))
+        expected = "Invalid OTP application name '{}' for Hex package 'app'. Expected a name starting with a lowercase letter and containing only letters, digits, '_', '@' or '-'.".format(name)
+        asserts.equals(env, expected, reason, "invalid otp_app: {}".format(repr(name)))
     return unittest.end(env)
 
 _rejects_invalid_otp_app_test = unittest.make(_rejects_invalid_otp_app_test_impl)

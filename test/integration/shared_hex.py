@@ -9,6 +9,26 @@ import tempfile
 
 REPO = Path(__file__).resolve().parents[2]
 DIGEST = "621d600bb134bc239cb2537630899817b1a42e60a1d46c5e9f3fae39f88c800b"
+EXPECTED_PACKAGES = [{
+    "name": "gleam_stdlib",
+    "version": "0.60.0",
+    "sha256": DIGEST,
+    "deps": [],
+    "build_tools": ["gleam"],
+    "otp_app": "gleam_stdlib",
+    "allow_plain_erlang": False,
+}]
+
+
+def assert_packages(name, output):
+    """Compare the complete repository input, including every package and metadata field."""
+    attributes = [line.strip().removeprefix("packages = ").removesuffix(",")
+                  for line in output.splitlines() if line.strip().startswith("packages = ")]
+    if len(attributes) != 1:
+        raise AssertionError(f"{name}: expected one packages attribute:\n{output}")
+    packages = json.loads(json.loads(attributes[0]))
+    if packages != EXPECTED_PACKAGES:
+        raise AssertionError(f"{name}: expected {EXPECTED_PACKAGES!r}, got {packages!r}")
 
 
 def main():
@@ -32,11 +52,16 @@ def main():
             )
             return result.returncode, result.stdout
 
-        def check(name, changes, errors=()):
+        def check(name, changes, errors=(), error=None):
             for path, content in originals.items():
                 path.write_text(changes.get(path, content))
             code, output = bazel("mod", "show_repo", "@gleam_packages")
-            if errors:
+            if error is not None:
+                messages = [line.removeprefix("Error in fail: ") for line in output.splitlines()
+                            if line.startswith("Error in fail: ")]
+                if code == 0 or messages != [error]:
+                    raise AssertionError(f"{name}: expected {[error]!r}, got {messages!r}:\n{output}")
+            elif errors:
                 if code == 0 or any(message not in output for message in errors):
                     raise AssertionError(f"{name}: expected {errors}, got:\n{output}")
             elif code:
@@ -50,9 +75,7 @@ def main():
         )
         try:
             output = check("shared explicit and manifest declarations", {})
-            # Inspect repository-rule inputs to prove only one package was emitted.
-            if output.count(DIGEST) != 1:
-                raise AssertionError(f"Expected one normalized package:\n{output}")
+            assert_packages("shared explicit and manifest declarations", output)
             code, output = bazel("build", "//:shared")
             if code:
                 raise AssertionError(output)
@@ -69,8 +92,7 @@ def main():
                   ("Conflicting declarations", "dependency module alpha@1.0.0",
                    "dependency module beta@1.0.0", "manifest.toml", "override = True"))
             output = check("explicit root override", {manifest: conflict, root: originals[root] + override})
-            if "0.61.0" in output or output.count(DIGEST) != 1:
-                raise AssertionError(f"Override did not replace the selected package:\n{output}")
+            assert_packages("explicit root override", output)
             check("root declaration has no implicit priority",
                   {manifest: conflict, root: originals[root] + override.replace(", override = True", "")},
                   ("Conflicting declarations", "root module shared_hex"))
@@ -90,6 +112,7 @@ def main():
                     'build_tools = ["gleam"],', f'build_tools = ["gleam"], deps = ["{dep}"],'),
                     manifest: originals[manifest].replace('requirements = []', f'requirements = ["{dep}"]')},
                       (error,))
+            # Mixed manifests retain exactly the same Hex graph and metadata.
             for source in ["git", "local", "path"]:
                 local_entry = (
                     '  { name = "mist_pal", version = "0.1.0", build_tools = ["gleam"], '
@@ -98,18 +121,27 @@ def main():
                 )
                 mixed = originals[manifest].replace("\n]", "\n" + local_entry + "]")
                 output = check(f"skip {source} entry in mixed manifest", {manifest: mixed})
-                if "mist_pal" in output or output.count(DIGEST) != 1:
-                    raise AssertionError(f"Expected only Hex packages:\n{output}")
+                assert_packages(f"skip {source} entry in mixed manifest", output)
                 check(f"Hex requirement on skipped {source} entry fails", {
                     manifest: mixed.replace('requirements = []', 'requirements = ["mist_pal"]'),
                     alpha: originals[alpha].replace('build_tools = ["gleam"],',
                                                     'build_tools = ["gleam"], deps = ["mist_pal"],'),
-                }, ("requires undeclared package 'mist_pal'",))
+                }, error="Hex package 'gleam_stdlib' from dependency module alpha@1.0.0 "
+                         'via gleam.hex_package(name = "gleam_stdlib") requires undeclared '
+                         "package 'mist_pal'. Declare the full dependency graph with "
+                         "gleam.hex_package(...) or gleam.hex_manifest(...).")
+
+            # Invalid sources and missing Hex checksums must still fail closed.
             check("unknown manifest source", {manifest: originals[manifest].replace(
                 'source = "hex"', 'source = "unknown"')},
-                  ("Unsupported manifest package", "Expected hex, git, local or path"))
+                  error="Unsupported manifest package 'gleam_stdlib' from dependency module "
+                        'beta@1.0.0 via @@beta+//:manifest.toml (source = "unknown"). '
+                        "Expected hex, git, local or path.")
             check("missing Hex checksum", {manifest: originals[manifest].replace(
-                DIGEST.upper(), "")}, ("no outer_checksum",))
+                DIGEST.upper(), "")},
+                  error="manifest.toml package 'gleam_stdlib' in @@beta+//:manifest.toml "
+                        'has source = "hex" but no outer_checksum. Regenerate manifest.toml '
+                        "with `gleam deps download`.")
             check("two manifests deduplicate", {
                 alpha: originals[alpha].split("gleam.hex_package(")[0]
                 + 'gleam.hex_manifest(manifest = "@beta//:manifest.toml")\n'
