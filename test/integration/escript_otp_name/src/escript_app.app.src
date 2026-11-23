@@ -1,0 +1,8 @@
+{application, escript_app, [
+    {description, "Escript application startup fixture"},
+    {vsn, "1.0.0"},
+    {modules, [escript_startup]},
+    {registered, []},
+    {applications, [kernel, stdlib]},
+    {mod, {escript_startup, []}}
+]}.

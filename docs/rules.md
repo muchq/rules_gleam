@@ -63,7 +63,7 @@ Unlike `gleam_library`/`gleam_test`, this rule doesn't compile anything and does
 <pre>
 load("@muchq_rules_gleam//gleam:defs.bzl", "gleam_library")
 
-gleam_library(<a href="#gleam_library-name">name</a>, <a href="#gleam_library-deps">deps</a>, <a href="#gleam_library-srcs">srcs</a>, <a href="#gleam_library-data">data</a>, <a href="#gleam_library-package_name">package_name</a>)
+gleam_library(<a href="#gleam_library-name">name</a>, <a href="#gleam_library-deps">deps</a>, <a href="#gleam_library-srcs">srcs</a>, <a href="#gleam_library-data">data</a>, <a href="#gleam_library-otp_app">otp_app</a>, <a href="#gleam_library-package_name">package_name</a>)
 </pre>
 
 Compiles a single Gleam package with `gleam compile-package`.
@@ -82,6 +82,7 @@ per-target caching model.
 | <a id="gleam_library-deps"></a>deps |  Gleam package dependencies (other gleam_library targets).   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
 | <a id="gleam_library-srcs"></a>srcs |  Source files (typically glob(["src/**/*.gleam", "src/**/*.erl", "src/**/*.mjs"])).   | <a href="https://bazel.build/concepts/labels">List of labels</a> | required |  |
 | <a id="gleam_library-data"></a>data |  Data dependencies.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
+| <a id="gleam_library-otp_app"></a>otp_app |  OTP application name for the compiled directory; defaults to package_name. A matching `src/<otp_app>.app.src` in data is copied to `ebin/<otp_app>.app` without interpreting Rebar3 configuration.   | String | optional |  `""`  |
 | <a id="gleam_library-package_name"></a>package_name |  The name of the Gleam package.   | String | required |  |
 
 
@@ -235,7 +236,7 @@ Provider for compiled Gleam package information.
 
 | Name  | Description |
 | :------------- | :------------- |
-| <a id="GleamPackageInfo-compiled_dir"></a>compiled_dir |  TreeArtifact (named after the package) containing ebin/ with compiled BEAM files.    |
+| <a id="GleamPackageInfo-compiled_dir"></a>compiled_dir |  TreeArtifact named after the OTP application, containing ebin/ with compiled BEAM files.    |
 | <a id="GleamPackageInfo-package_name"></a>package_name |  Name of the Gleam package.    |
 | <a id="GleamPackageInfo-transitive_compiled_dirs"></a>transitive_compiled_dirs |  Depset of all transitive compiled TreeArtifacts (including this package's own).    |
 | <a id="GleamPackageInfo-transitive_data"></a>transitive_data |  Depset of all transitive runtime data Files (this package's own `data` plus all deps', transitively).    |

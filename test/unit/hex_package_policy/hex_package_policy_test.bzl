@@ -91,18 +91,29 @@ _rejects_native_markers_test = unittest.make(_rejects_native_markers_test_impl)
 
 # OTP application name.
 
-def _rejects_differing_otp_app_test_impl(ctx):
+def _accepts_differing_otp_app_test_impl(ctx):
     env = unittest.begin(ctx)
     _check(
         env,
         "otp_app differs from Hex name",
-        "OTP application name 'different_app' differs from Hex name 'app'; this layout is not supported yet.",
+        None,
         ["gleam"],
         otp_app = "different_app",
     )
+    _check(env, "renamed plain Erlang application", None, ["rebar3"], otp_app = "hpack", has_gleam_toml = False, allow_plain_erlang = True)
     return unittest.end(env)
 
-_rejects_differing_otp_app_test = unittest.make(_rejects_differing_otp_app_test_impl)
+_accepts_differing_otp_app_test = unittest.make(_accepts_differing_otp_app_test_impl)
+
+def _rejects_invalid_otp_app_test_impl(ctx):
+    env = unittest.begin(ctx)
+    for name in ["", "../hpack", "hpack/app", 'hpack"', "hpack\\app"]:
+        reason = unsupported_package_reason("app", ["gleam"], name, True, False, [])
+        expected = "Invalid OTP application name '{}' for Hex package 'app'. Expected a name starting with a lowercase letter and containing only letters, digits, '_', '@' or '-'.".format(name)
+        asserts.equals(env, expected, reason, "invalid otp_app: {}".format(repr(name)))
+    return unittest.end(env)
+
+_rejects_invalid_otp_app_test = unittest.make(_rejects_invalid_otp_app_test_impl)
 
 def hex_package_policy_test_suite(name):
     """Declares the policy test suite.
@@ -116,5 +127,6 @@ def hex_package_policy_test_suite(name):
         _rejects_unsupported_build_tools_test,
         _rejects_missing_gleam_toml_test,
         _rejects_native_markers_test,
-        _rejects_differing_otp_app_test,
+        _accepts_differing_otp_app_test,
+        _rejects_invalid_otp_app_test,
     )

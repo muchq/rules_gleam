@@ -66,7 +66,7 @@ def _gleam_test_impl(ctx):
     for dep_info in dep_infos:
         cmd_parts.append('ln -s "$(pwd)/{compiled}" "_gleam_lib/{name}"'.format(
             compiled = dep_info.compiled_dir.path,
-            name = dep_info.package_name,
+            name = dep_info.compiled_dir.basename,
         ))
 
     # Compile with --test flag to include test sources.

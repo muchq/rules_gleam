@@ -138,8 +138,9 @@ found next to gleam.toml). Its resolved packages -- name, version, transitive re
 and outer_checksum -- are parsed and registered exactly as if each had been declared with its
 own gleam.hex_package(...) call, eliminating the need to hand-maintain the transitive
 dependency graph and checksums. Only entries with source = "hex" are included; git- or
-path-sourced packages cause an error. Supply non-Hex packages as local gleam_library targets
-and wire their deps explicitly instead of importing that manifest.
+path-sourced packages are skipped. Supply those packages as local gleam_library targets
+and wire their deps explicitly in BUILD.bazel. Imported Hex packages must depend only on
+other declared Hex packages.
 """, allow_single_file = True, mandatory = True),
 })
 
@@ -204,13 +205,12 @@ def _toolchain_extension(module_ctx):
             manifest_path = module_ctx.path(manifest_tag.manifest)
             content = module_ctx.read(manifest_path)
             for pkg in parse_manifest_toml(content):
+                if pkg.source in ["git", "local", "path"]:
+                    continue
                 if pkg.source != "hex":
                     fail((
                         "Unsupported manifest package '{name}' from {module} via {manifest} " +
-                        "(source = \"{source}\"). Only Hex packages can be imported. " +
-                        "Define git/path packages as local gleam_library targets and wire their deps " +
-                        "explicitly in BUILD.bazel; declare the remaining Hex packages with " +
-                        "gleam.hex_package(...) instead of importing this manifest."
+                        "(source = \"{source}\"). Expected hex, git, local or path."
                     ).format(name = pkg.name, module = module_desc, manifest = manifest_label, source = pkg.source))
                 if not pkg.sha256:
                     fail((
@@ -376,13 +376,14 @@ load("@muchq_rules_gleam//gleam:defs.bzl", "gleam_library")
 
 gleam_library(
     name = "{name}",
-    data = ["gleam.toml"] + glob(["src/**/*.hrl", "include/**/*.hrl", "priv/**"], allow_empty = True),
+    data = ["gleam.toml"] + glob(["src/**/*.hrl", "include/**/*.hrl", "priv/**", "src/{otp_app}.app.src"], allow_empty = True),
     package_name = "{name}",
+    otp_app = "{otp_app}",
     srcs = glob(["src/**/*.gleam", "src/**/*.erl", "src/**/*.mjs"], allow_empty = True),
     deps = [{deps}],
     visibility = ["//visibility:public"],
 )
-""".format(name = name, deps = deps_str)
+""".format(name = name, otp_app = pkg["otp_app"], deps = deps_str)
 
         repository_ctx.file("{}/BUILD.bazel".format(name), build_content)
 

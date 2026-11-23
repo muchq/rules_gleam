@@ -28,7 +28,7 @@ def erl_compiler_options_command(files, package_root):
     return 'export ERL_COMPILER_OPTIONS="[' + options + ']"'
 
 def otp_package_commands(files, package_root, output):
-    """Returns shell commands that copy declared include/ and priv/ files into an OTP package.
+    """Returns shell commands that copy declared OTP assets and a static application resource.
 
     Gleam links `<out>/priv` to the source priv directory with an absolute path, which would
     leave a dangling sandbox symlink in the tree artifact, so it is replaced with real copies.
@@ -54,4 +54,12 @@ def otp_package_commands(files, package_root, output):
                     shell.quote(f.path),
                     shell.quote(destination),
                 ))
+    app_src = _prefix(package_root, "src") + output.basename + ".app.src"
+    for f in files:
+        if f.path == app_src:
+            commands.append("mkdir -p {} && cp -L {} {}".format(
+                shell.quote(output.path + "/ebin"),
+                shell.quote(f.path),
+                shell.quote(output.path + "/ebin/" + output.basename + ".app"),
+            ))
     return commands

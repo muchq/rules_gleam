@@ -16,8 +16,8 @@ def unsupported_package_reason(name, build_tools, otp_app, has_gleam_toml, allow
     Returns:
         An error string, or None when supported.
     """
-    if otp_app != name:
-        return "OTP application name '{}' differs from Hex name '{}'; this layout is not supported yet.".format(otp_app, name)
+    if not otp_app or otp_app[0] not in "abcdefghijklmnopqrstuvwxyz" or any([c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@-" for c in otp_app.elems()]):
+        return "Invalid OTP application name '{}' for Hex package '{}'. Expected a name starting with a lowercase letter and containing only letters, digits, '_', '@' or '-'.".format(otp_app, name)
     if native_markers:
         return "native/custom build inputs {} are unsupported; NIFs, Mix and build scripts are not executed.".format(native_markers)
     if build_tools and "gleam" not in build_tools:

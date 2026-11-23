@@ -294,7 +294,7 @@
   "moduleExtensions": {
     "//gleam:extensions.bzl%gleam": {
       "general": {
-        "bzlTransitiveDigest": "4aJ4eNMwvT3/TMjCeHaAXdchw+gH2OGqc2q7CO8B9jo=",
+        "bzlTransitiveDigest": "nsss1tz8nDO4HjFrobDsQc78H0mQeAVlglnjXX4fYTk=",
         "usagesDigest": "Al5AO0O6rLM/jChMKgO+jQL9Vj0dHjeazfWf2O4mkaw=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
