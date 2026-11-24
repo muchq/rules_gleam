@@ -6,7 +6,7 @@ per-target caching model: each package compiles once and downstream
 targets consume compiled BEAM artifacts.
 """
 
-load(":package_files.bzl", "erl_compiler_options_command", "otp_package_commands")
+load(":package_files.bzl", "erl_compiler_options_command", "otp_package_commands", "quiet_on_success")
 
 GleamPackageInfo = provider(
     doc = "Provider for compiled Gleam package information.",
@@ -88,7 +88,7 @@ def _gleam_library_impl(ctx):
         out = compiled_dir.path,
     )
     cmd_parts.append(erl_compiler_options_command(ctx.files.data, src_dir))
-    cmd_parts.append(compile_cmd)
+    cmd_parts.append(quiet_on_success(compile_cmd) if ctx.attr.quiet_warnings else compile_cmd)
     cmd_parts.extend(otp_package_commands(ctx.files.data, src_dir, compiled_dir))
 
     final_command = " && ".join(cmd_parts)
@@ -157,6 +157,10 @@ gleam_library = rule(
             doc = "Data dependencies.",
             allow_files = True,
             default = [],
+        ),
+        "quiet_warnings": attr.bool(
+            doc = "Print the compiler's output only if compilation fails. Generated Hex package targets set this, since their warnings are not actionable downstream; fix warnings in your own packages instead.",
+            default = False,
         ),
     },
     toolchains = ["//gleam:toolchain_type"],

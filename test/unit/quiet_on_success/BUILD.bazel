@@ -1,0 +1,6 @@
+load(":quiet_on_success_test.bzl", "quiet_on_success_test")
+load(":quiet_warnings_test.bzl", "quiet_warnings_test_suite")
+
+quiet_on_success_test(name = "quiet_on_success_test")
+
+quiet_warnings_test_suite(name = "quiet_warnings_test")

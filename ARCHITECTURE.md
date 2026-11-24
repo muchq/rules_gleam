@@ -40,7 +40,9 @@ Four layers, each catching a different class of regression:
    `analysistest.make(expect_failure = True)` plus `asserts.expect_failure(env, msg)`. These are
    the cheapest and fastest layer, and the first to write when adding logic to a repository rule
    or module extension — the majority of these functions were literally extracted from an
-   existing rule implementation specifically to make them unit-testable in isolation.
+   existing rule implementation specifically to make them unit-testable in isolation. Shell
+   fragments a rule emits are tested the same way, by a test rule that writes the fragment into a
+   script and runs it against a fake tool (`test/unit/quiet_on_success`).
 2. **`gleam_gazelle`'s own Go unit tests + golden files** (`gleam_gazelle/*_test.go`,
    `gleam_gazelle/testdata/golden/*`) — since the Gazelle extension is Go, not Starlark, it's
    tested the same way `bazel-gazelle`'s own language extensions are: each fixture directory

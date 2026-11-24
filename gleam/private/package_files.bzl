@@ -63,3 +63,17 @@ def otp_package_commands(files, package_root, output):
                 shell.quote(output.path + "/ebin/" + output.basename + ".app"),
             ))
     return commands
+
+def quiet_on_success(command):
+    """Returns command, printing its output only if it fails.
+
+    Braced so that it is a single command inside an `&&` chain: a bare `||` would bind to the
+    whole chain before it.
+
+    Args:
+        command: A shell command.
+
+    Returns:
+        A shell command string.
+    """
+    return "{ _out=$(" + command + ' 2>&1) || { _rc=$?; printf "%s\\n" "$_out" >&2; exit "$_rc"; }; }'
