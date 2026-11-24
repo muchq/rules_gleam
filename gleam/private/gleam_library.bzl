@@ -159,7 +159,7 @@ gleam_library = rule(
             default = [],
         ),
         "quiet_warnings": attr.bool(
-            doc = "Print the compiler's output only if compilation fails. Set on Hex packages, whose warnings are not actionable downstream.",
+            doc = "Print the compiler's output only if compilation fails. Generated Hex package targets set this, since their warnings are not actionable downstream; fix warnings in your own packages instead.",
             default = False,
         ),
     },

@@ -8,7 +8,12 @@ def _impl(ctx):
     compiles = [a for a in analysistest.target_actions(env) if a.mnemonic == "GleamCompilePackage"]
     asserts.equals(env, 1, len(compiles))
     command = compiles[0].argv[-1]
-    asserts.equals(env, ctx.attr.quiet, "_out=$(" in command, command)
+    asserts.equals(env, 1, command.count("compile-package"), command)
+    start = command.find("{ _out=$(")
+    asserts.equals(env, ctx.attr.quiet, start >= 0, command)
+    if ctx.attr.quiet:
+        wrapped = command[start:command.find(" 2>&1) || {", start)]
+        asserts.true(env, "compile-package" in wrapped, "the wrapper must hold the compile: " + command)
     return analysistest.end(env)
 
 _quiet_warnings_test = analysistest.make(_impl, attrs = {"quiet": attr.bool()})
