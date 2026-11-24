@@ -1,7 +1,7 @@
 """Supported-package and fail-closed policy tests."""
 
 load("@bazel_skylib//lib:unittest.bzl", "asserts", "unittest")
-load("//gleam/private:hex_package_policy.bzl", "unsupported_package_reason")  # buildifier: disable=bzl-visibility
+load("//gleam/private:hex_package_policy.bzl", "hex_package_build_file", "unsupported_package_reason")  # buildifier: disable=bzl-visibility
 
 _OPT_IN_HINT = "Only audited plain Erlang packages may opt in with allow_plain_erlang / plain_erlang_packages."
 
@@ -115,6 +115,17 @@ def _rejects_invalid_otp_app_test_impl(ctx):
 
 _rejects_invalid_otp_app_test = unittest.make(_rejects_invalid_otp_app_test_impl)
 
+# Hex packages compile quietly: their warnings are not actionable downstream.
+
+def _hex_packages_compile_quietly_test_impl(ctx):
+    env = unittest.begin(ctx)
+    build = hex_package_build_file("mist", "mist", ["gramps"])
+    asserts.true(env, "quiet_warnings = True," in build, build)
+    asserts.true(env, 'deps = ["//gramps"],' in build, build)
+    return unittest.end(env)
+
+_hex_packages_compile_quietly_test = unittest.make(_hex_packages_compile_quietly_test_impl)
+
 def hex_package_policy_test_suite(name):
     """Declares the policy test suite.
 
@@ -129,4 +140,5 @@ def hex_package_policy_test_suite(name):
         _rejects_native_markers_test,
         _accepts_differing_otp_app_test,
         _rejects_invalid_otp_app_test,
+        _hex_packages_compile_quietly_test,
     )

@@ -63,7 +63,7 @@ Unlike `gleam_library`/`gleam_test`, this rule doesn't compile anything and does
 <pre>
 load("@muchq_rules_gleam//gleam:defs.bzl", "gleam_library")
 
-gleam_library(<a href="#gleam_library-name">name</a>, <a href="#gleam_library-deps">deps</a>, <a href="#gleam_library-srcs">srcs</a>, <a href="#gleam_library-data">data</a>, <a href="#gleam_library-otp_app">otp_app</a>, <a href="#gleam_library-package_name">package_name</a>)
+gleam_library(<a href="#gleam_library-name">name</a>, <a href="#gleam_library-deps">deps</a>, <a href="#gleam_library-srcs">srcs</a>, <a href="#gleam_library-data">data</a>, <a href="#gleam_library-otp_app">otp_app</a>, <a href="#gleam_library-package_name">package_name</a>, <a href="#gleam_library-quiet_warnings">quiet_warnings</a>)
 </pre>
 
 Compiles a single Gleam package with `gleam compile-package`.
@@ -84,6 +84,7 @@ per-target caching model.
 | <a id="gleam_library-data"></a>data |  Data dependencies.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional |  `[]`  |
 | <a id="gleam_library-otp_app"></a>otp_app |  OTP application name for the compiled directory; defaults to package_name. A matching `src/<otp_app>.app.src` in data is copied to `ebin/<otp_app>.app` without interpreting Rebar3 configuration.   | String | optional |  `""`  |
 | <a id="gleam_library-package_name"></a>package_name |  The name of the Gleam package.   | String | required |  |
+| <a id="gleam_library-quiet_warnings"></a>quiet_warnings |  Print the compiler's output only if compilation fails. Set on Hex packages, whose warnings are not actionable downstream.   | Boolean | optional |  `False`  |
 
 
 <a id="gleam_release"></a>
